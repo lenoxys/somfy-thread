@@ -1,11 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: Unlicense
-# Vendor ESP Web Tools locally. The published dist file is a self-contained ES
-# module bundle, so the deployed site loads it same-origin and makes no external
-# request at runtime. Run this before serving/deploying doc/. Pin the version.
+# Vendor third-party JS locally so the deployed site loads everything
+# same-origin and makes no external request at runtime. Run this before
+# serving/deploying docs/. Pin every version.
 set -e
-VER=10.0.0
+EWT_VER=10.0.0
+QRC_VER=1.4.4
 DIR=$(dirname "$0")
-curl -fsSL "https://unpkg.com/esp-web-tools@${VER}/dist/web/install-button.js" \
+curl -fsSL "https://unpkg.com/esp-web-tools@${EWT_VER}/dist/web/install-button.js" \
   -o "$DIR/esp-web-tools.js"
-echo "vendored esp-web-tools@${VER} -> $DIR/esp-web-tools.js"
+echo "vendored esp-web-tools@${EWT_VER} -> $DIR/esp-web-tools.js"
+curl -fsSL "https://unpkg.com/qrcode-generator@${QRC_VER}/qrcode.js" \
+  -o "$DIR/qrcode.js"
+echo "vendored qrcode-generator@${QRC_VER} -> $DIR/qrcode.js"

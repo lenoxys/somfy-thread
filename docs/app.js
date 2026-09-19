@@ -358,6 +358,16 @@ async function getPairing() {
   const code = $("paircode");
   code.hidden = false;
   code.textContent = manual;
+  const img = $("qrimg");
+  if (qr && window.qrcode) {
+    const q = window.qrcode(0, "M");
+    q.addData(qr);
+    q.make();
+    img.src = q.createDataURL(6, 16);
+    img.hidden = false;
+  } else {
+    img.hidden = true;
+  }
   $("qrpayload").textContent = qr ? t("matter.qr", { qr }) : "";
 }
 

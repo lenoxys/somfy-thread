@@ -72,6 +72,7 @@
     <div class="callout" data-i18n="matter.help"></div>
     <div class="bar"><button id="pairBtn" class="btn primary" data-i18n="matter.getCode"></button></div>
     <div id="paircode" class="paircode" hidden></div>
+    <img id="qrimg" class="qrimg" alt="" hidden>
     <div id="qrpayload" class="qr"></div>
   </section>
 
@@ -99,6 +100,7 @@
   </details>
 </main>
 
+<script src="./vendor/qrcode.js"></script>
 <script type="module" src="./vendor/esp-web-tools.js"></script>
 <script type="module" src="./app.js"></script>
 </body>
