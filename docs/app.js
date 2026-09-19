@@ -41,10 +41,9 @@ function manifestUrl(binUrl) {
   return URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/json" }));
 }
 
-/** Find the firmware.bin asset download URL in a release. */
+/** Find the flashable firmware asset (a merged *.bin) in a release. */
 function firmwareAsset(release) {
-  const a = (release.assets || []).find((x) => x.name === "firmware.bin");
-  return a ? a.browser_download_url : null;
+  return (release.assets || []).find((x) => x.name.endsWith(".bin")) || null;
 }
 
 let releases = [];
@@ -52,18 +51,18 @@ let releases = [];
 /** Apply the selected release to the install button, changelog, and fallback. */
 function selectRelease(idx) {
   const r = releases[idx];
-  const bin = firmwareAsset(r);
+  const asset = firmwareAsset(r);
   const installer = $("installer");
   const fb = $("fallback");
-  if (!bin) {
+  if (!asset) {
     installer.removeAttribute("manifest");
-    fb.textContent = "This release has no firmware.bin asset.";
+    fb.textContent = "This release has no .bin firmware asset.";
   } else {
-    installer.setAttribute("manifest", manifestUrl(bin));
+    installer.setAttribute("manifest", manifestUrl(asset.browser_download_url));
     fb.textContent = "";
     const link = document.createElement("a");
-    link.href = bin;
-    link.textContent = "Download firmware.bin";
+    link.href = asset.browser_download_url;
+    link.textContent = "Download " + asset.name;
     fb.append("Firefox/Safari: ", link, " and flash at offset 0 with esptool.");
   }
   $("changelog").textContent = r.body || "(no notes)";

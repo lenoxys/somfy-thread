@@ -24,7 +24,7 @@ Open the project page in a Chromium-based browser (Chrome/Edge), plug the board 
 
 - **Board** — connect over Web Serial; the page reads the firmware version. If it's current you continue straight to config; if a newer release exists you can update; if no somfy-thread firmware is found it flashes one with [ESP Web Tools](https://esphome.github.io/esp-web-tools/). Firefox/Safari don't support Web Serial — download the `.bin` and flash with `esptool` instead.
 
-Each released `firmware.bin` carries a build-provenance attestation, so you can confirm it was built by this repo's workflow: `gh attestation verify firmware.bin --repo lenoxys/somfy-thread`.
+Each release ships a `somfy-thread-esp32c6-<version>.bin` carrying a build-provenance attestation, so you can confirm it was built by this repo's workflow: `gh attestation verify somfy-thread-esp32c6-<version>.bin --repo lenoxys/somfy-thread`.
 - **Shades** — each shade is one motor: name it, run **PROG** (then long-press PROG on the motor's existing remote to pair), and test with **Open / Close / My / Stop**. Address and rolling code are only needed when restoring a backup.
 - **Matter** — get the pairing code and add the device to any Matter controller.
 - **Backup** — **export** a JSON backup and **import** it back to restore or migrate.

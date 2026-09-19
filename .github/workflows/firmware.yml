@@ -58,18 +58,19 @@ jobs:
           export ESP_MATTER_PATH="$GITHUB_WORKSPACE/esp-matter"
           . "$ESP_MATTER_PATH/export.sh"
           cd somfy-thread
-          if [ -n "${{ github.event.release.tag_name }}" ]; then
-            echo "${{ github.event.release.tag_name }}" > version.txt
-          fi
+          VER="${{ github.event.release.tag_name }}"
+          [ -n "$VER" ] && echo "$VER" > version.txt || VER=dev
+          BIN="somfy-thread-esp32c6-$VER.bin"
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
           idf.py set-target esp32c6
           idf.py build
           cd build
-          esptool.py --chip esp32c6 merge_bin -o "$GITHUB_WORKSPACE/firmware.bin" @flash_args
+          esptool.py --chip esp32c6 merge_bin -o "$GITHUB_WORKSPACE/$BIN" @flash_args
 
       - name: Attest firmware provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: ${{ github.workspace }}/firmware.bin
+          subject-path: ${{ github.workspace }}/${{ env.BIN }}
 
       - name: Attach firmware to release
         if: github.event_name == 'release'
@@ -78,8 +79,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           UPLOAD_URL: ${{ github.event.release.upload_url }}
         run: |
-          url="${UPLOAD_URL%%\{*}?name=firmware.bin"
+          url="${UPLOAD_URL%%\{*}?name=$BIN"
           curl -fsSL -X POST "$url" \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Content-Type: application/octet-stream" \
-            --data-binary @"$GITHUB_WORKSPACE/firmware.bin"
+            --data-binary @"$GITHUB_WORKSPACE/$BIN"
