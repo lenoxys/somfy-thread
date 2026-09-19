@@ -378,18 +378,22 @@ $("resetBtn").addEventListener("click", () => {
   if (confirm(t("confirm.reset"))) send("reset");
 });
 
-/** Apply a saved theme: "system" clears the override so the OS decides. */
-function applyTheme(v) {
+const themeBtns = [...document.querySelectorAll(".theme button")];
+
+/** Set the theme, persist it, and highlight the matching icon. "system" clears the override so the OS decides. */
+function setTheme(v) {
   if (v === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.dataset.theme = v;
+  localStorage.setItem("theme", v);
+  themeBtns.forEach((b) => b.classList.toggle("active", b.dataset.themeVal === v));
 }
-const savedTheme = localStorage.getItem("theme") || "system";
-$("theme").value = savedTheme;
-applyTheme(savedTheme);
-$("theme").addEventListener("change", (e) => {
-  localStorage.setItem("theme", e.target.value);
-  applyTheme(e.target.value);
+themeBtns.forEach((b) => {
+  const label = t("theme." + b.dataset.themeVal);
+  b.title = label;
+  b.setAttribute("aria-label", label);
+  b.addEventListener("click", () => setTheme(b.dataset.themeVal));
 });
+setTheme(localStorage.getItem("theme") || "system");
 
 applyI18n();
 fetchReleases();
