@@ -189,6 +189,8 @@ async function refresh() {
   const line = await request("list", (l) => l.startsWith("["));
   shades = JSON.parse(line);
   renderManage();
+  const freq = await request("freq", (l) => /^\d+\.\d+$/.test(l.trim()));
+  $("radioFreq").value = freq.trim();
 }
 
 /** Fire-and-forget a setter command (device replies OK/ERR to the log). */
@@ -202,7 +204,6 @@ function renderManage() {
     const tr = document.createElement("tr");
     tr.append(td(String(s.idx)));
     tr.append(inputTd("name", s.name, (v) => save(`name ${s.idx} ${v}`)));
-    tr.append(inputTd("num", s.freq.toFixed(3), (v) => save(`freq ${s.idx} ${v}`)));
     tr.append(inputTd("num", s.addr, (v) => save(`addr ${s.idx} ${v}`)));
     tr.append(inputTd("num", String(s.rolling), (v) => save(`roll ${s.idx} ${v}`)));
     tr.append(checkTd(s.active, (on) => save(`active ${s.idx} ${on ? 1 : 0}`)));
@@ -326,10 +327,12 @@ async function beginFlash() {
   $("flasher").hidden = false;
 }
 
-/** Download the current table as a JSON backup file. */
+/** Download the current config (global radio freq + shade table) as JSON. */
 async function exportBackup() {
   const line = await request("export", (l) => l.startsWith("["));
-  const blob = new Blob([line], { type: "application/json" });
+  const freq = await request("freq", (l) => /^\d+\.\d+$/.test(l.trim()));
+  const data = JSON.stringify({ freq: parseFloat(freq), shades: JSON.parse(line) });
+  const blob = new Blob([data], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "somfy-thread-backup.json";
@@ -337,14 +340,15 @@ async function exportBackup() {
   URL.revokeObjectURL(a.href);
 }
 
-/** Replay a backup file into the device (name/addr/roll/freq/active per shade). */
+/** Replay a backup file: global radio freq, then name/addr/roll/active per shade. */
 async function importBackup(file) {
-  const list = JSON.parse(await file.text());
+  const data = JSON.parse(await file.text());
+  const list = Array.isArray(data) ? data : data.shades;
+  if (data.freq) await send(`freq ${Number(data.freq).toFixed(3)}`);
   for (const s of list) {
     await send(`name ${s.idx} ${s.name}`);
     await send(`addr ${s.idx} ${s.addr}`);
     await send(`roll ${s.idx} ${s.rolling}`);
-    await send(`freq ${s.idx} ${s.freq.toFixed(3)}`);
     await send(`active ${s.idx} ${s.active ? 1 : 0}`);
   }
   await refresh();
@@ -387,6 +391,7 @@ $("import").addEventListener("click", () => $("importFile").click());
 $("importFile").addEventListener("change", (e) => {
   if (e.target.files[0]) importBackup(e.target.files[0]).catch((err) => log("ERR " + err.message));
 });
+$("radioFreq").addEventListener("change", (e) => save(`freq ${e.target.value}`));
 $("pairBtn").addEventListener("click", () => getPairing().catch((e) => log("ERR " + e.message)));
 $("resetBtn").addEventListener("click", () => {
   if (confirm(t("confirm.reset"))) send("reset");

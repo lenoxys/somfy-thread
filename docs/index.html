@@ -59,10 +59,17 @@
     <p class="muted" data-i18n="shades.intro"></p>
     <div class="callout" data-i18n-html="shades.progHelp"></div>
     <table>
-      <thead><tr><th>#</th><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.freq"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th><th data-i18n="shades.col.on"></th><th data-i18n="shades.col.motor"></th></tr></thead>
+      <thead><tr><th>#</th><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th><th data-i18n="shades.col.on"></th><th data-i18n="shades.col.motor"></th></tr></thead>
       <tbody id="manageBody"></tbody>
     </table>
     <div class="bar"><button id="refresh" class="btn small" data-i18n="shades.reload"></button></div>
+    <details class="adv">
+      <summary data-i18n="radio.title"></summary>
+      <label class="advrow"><span data-i18n="radio.freq"></span>
+        <input id="radioFreq" type="number" step="0.01" min="433.05" max="434.79">
+      </label>
+      <p class="muted" data-i18n="radio.help"></p>
+    </details>
   </section>
 
   <!-- Step 2 — Matter -->

@@ -161,6 +161,10 @@ input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--navy
 .paircode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.6rem; font-weight: 700;
   letter-spacing: .08em; background: var(--navy); color: #fff; padding: .6rem .9rem; border-radius: 8px;
   display: inline-block; margin: .5rem 0; }
+.adv { margin-top: 1rem; }
+.adv summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+.advrow { display: flex; align-items: center; gap: .6rem; margin: .7rem 0 .3rem; }
+.advrow input { width: 8rem; }
 .qrimg { display: block; width: 220px; height: auto; margin: .5rem 0; border-radius: 8px;
   background: #fff; padding: .5rem; image-rendering: pixelated; }
 .qr { word-break: break-all; font-family: ui-monospace, monospace; font-size: .8rem; color: var(--muted); }

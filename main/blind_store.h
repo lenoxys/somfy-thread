@@ -13,12 +13,13 @@ extern "C" {
 
 /**
  * One shade: its 24-bit RTS remote address, last-transmitted 16-bit rolling
- * code, per-shade carrier frequency, display name, and active flag.
+ * code, display name, and active flag. The carrier frequency is a single
+ * device-wide radio setting (all EU Somfy RTS motors share the band), not
+ * per-shade — see blind_store_freq().
  */
 typedef struct {
     uint32_t addr;
     uint16_t rolling;
-    float    freq_mhz;
     char     name[16];
     bool     active;
 } shade_t;
@@ -49,6 +50,17 @@ void     blind_store_save(void);
  * @return The new rolling code, or 0 if `idx` is out of range.
  */
 uint16_t blind_store_next_rolling(int idx);
+
+/**
+ * @return The device-wide carrier frequency in MHz (default BOARD_DEFAULT_FREQ_MHZ).
+ */
+float    blind_store_freq(void);
+
+/**
+ * Set and persist the device-wide carrier frequency (MHz). Applies to every
+ * shade's next transmit.
+ */
+void     blind_store_set_freq(float mhz);
 
 #ifdef __cplusplus
 }

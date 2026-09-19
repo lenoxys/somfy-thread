@@ -72,7 +72,7 @@ static void rf_task(void *arg)
         int repeats = (job.cmd == SOMFY_PROG) ? 12 : 3;
         uint16_t rolling = blind_store_next_rolling(job.idx);
         s_last_tx_us = esp_timer_get_time();
-        somfy_rts_send(&s_rts, s->addr, rolling, s->freq_mhz, job.cmd, repeats);
+        somfy_rts_send(&s_rts, s->addr, rolling, blind_store_freq(), job.cmd, repeats);
         somfy_rx_resume();
     }
 }
@@ -259,8 +259,8 @@ static void print_shades_json(void)
     printf("[");
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         shade_t *s = blind_store_get(i);
-        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"freq\":%.3f,\"active\":%s}",
-               i ? "," : "", i, s->name, (unsigned long)s->addr, s->rolling, s->freq_mhz,
+        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"active\":%s}",
+               i ? "," : "", i, s->name, (unsigned long)s->addr, s->rolling,
                s->active ? "true" : "false");
     }
     printf("]\n");
@@ -298,15 +298,17 @@ static int cmd_name(int argc, char **argv)
     return 0;
 }
 
+/**
+ * `freq` prints the device-wide carrier frequency; `freq <mhz>` sets it. The
+ * frequency is a single radio setting shared by every shade (EU Somfy RTS
+ * motors all use the 433 band), so there is no per-shade index.
+ */
 static int cmd_freq(int argc, char **argv)
 {
-    if (argc < 3) { printf("ERR usage: freq <idx> <mhz>\n"); return 1; }
-    shade_t *s = blind_store_get(atoi(argv[1]));
-    if (!s) { printf("ERR bad idx\n"); return 1; }
-    float f = strtof(argv[2], NULL);
+    if (argc < 2) { printf("%.3f\n", blind_store_freq()); return 0; }
+    float f = strtof(argv[1], NULL);
     if (f < BOARD_FREQ_MIN_MHZ || f > BOARD_FREQ_MAX_MHZ) { printf("ERR freq out of band\n"); return 1; }
-    s->freq_mhz = f;
-    blind_store_save();
+    blind_store_set_freq(f);
     printf("OK\n");
     return 0;
 }
@@ -360,7 +362,7 @@ static void register_console(void)
         {"list",   "List shades as JSON",                    NULL, &cmd_list,   NULL},
         {"tx",     "tx <idx> <up|down|my|stop|prog>",        NULL, &cmd_tx,     NULL},
         {"name",   "name <idx> <text>",                      NULL, &cmd_name,   NULL},
-        {"freq",   "freq <idx> <mhz>",                       NULL, &cmd_freq,   NULL},
+        {"freq",   "freq [mhz] — get/set device radio frequency", NULL, &cmd_freq, NULL},
         {"addr",   "addr <idx> <hex24>",                     NULL, &cmd_addr,   NULL},
         {"roll",   "roll <idx> <value>",                     NULL, &cmd_roll,   NULL},
         {"active", "active <idx> <0|1>",                     NULL, &cmd_active, NULL},

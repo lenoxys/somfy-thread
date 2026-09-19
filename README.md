@@ -16,7 +16,7 @@ Waveshare ESP32-C6-Zero (native USB-C) wired to an E07-M1101D:
 | CSN          | 21            |
 | GDO0         | 22            |
 
-Default carrier 433.42 MHz; per-shade frequency is tunable (a real crystal drifts — sweep 433.36–433.44 if a motor stays silent).
+Default carrier 433.42 MHz; the frequency is a single device-wide radio setting, tunable (a real crystal drifts — sweep 433.36–433.44 if a motor stays silent).
 
 ## Set it up (no toolchain)
 
