@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Unlicense
+# Keep the SHA-pinned GitHub Actions current (Dependabot bumps the pin and its
+# version comment). No app dependencies to track: firmware pulls esp-idf/
+# esp-matter in CI, the site vendors its one JS lib at build time.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
