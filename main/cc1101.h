@@ -24,6 +24,7 @@ extern "C" {
 
 #define CC1101_SRES     0x30
 #define CC1101_SCAL     0x33
+#define CC1101_SRX      0x34
 #define CC1101_STX      0x35
 #define CC1101_SIDLE    0x36
 #define CC1101_SNOP     0x3D
@@ -57,6 +58,11 @@ float cc1101_get_frequency(const cc1101_t *dev);
  * Enter TX. In async-serial mode the waveform on GDO0 keys the carrier.
  */
 void  cc1101_enter_tx_mode(cc1101_t *dev);
+
+/**
+ * Enter RX. In async-serial mode the demodulated OOK data streams out on GDO2.
+ */
+void  cc1101_enter_rx_mode(cc1101_t *dev);
 
 /**
  * Return the chip to IDLE.

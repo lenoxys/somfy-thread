@@ -10,19 +10,21 @@
 static const char *TAG = "cc1101";
 
 /**
- * Register set for 433 MHz OOK in asynchronous-serial TX mode. Each entry is
- * {address, value}. The functional choices are: IOCFG0 (0x02) = 0x2E puts GDO0
- * in 3-state so the RMT peripheral drives it as the TX-data input; PKTCTRL0
+ * Register set for 433 MHz OOK in asynchronous-serial mode, shared by TX and RX.
+ * Each entry is {address, value}. The functional choices are: IOCFG2 (0x00) =
+ * 0x0D streams the demodulated RX data out on GDO2; IOCFG0 (0x02) = 0x2E puts
+ * GDO0 in 3-state so the RMT peripheral drives it as the TX-data input; PKTCTRL0
  * (0x08) = 0x32 selects async-serial mode with infinite packet length; MDMCFG2
- * (0x12) = 0x30 selects OOK with Manchester and sync-word disabled (Manchester
- * is produced in the RMT symbol stream); FREND0 (0x22) = 0x11 makes the PA ramp
- * between PATABLE[0] (off) and PATABLE[1] (on). The remaining entries are the
- * standard 433 MHz front-end/AGC/calibration defaults. FREQ is written
- * separately from the runtime frequency.
+ * (0x12) = 0x34 selects OOK with carrier-sense sync (SYNC_MODE=4, matching
+ * ESPSomfy; the packet engine is bypassed so this only squelches RX noise, and
+ * async TX ignores it); FREND0 (0x22) = 0x11 makes the PA ramp between
+ * PATABLE[0] (off) and PATABLE[1] (on). The remaining entries are the standard
+ * 433 MHz front-end/AGC/calibration defaults. FREQ is written separately from
+ * the runtime frequency.
  */
 static const uint8_t init_regs[][2] = {
-    {0x02, 0x2E}, {0x03, 0x47}, {0x06, 0xFF}, {0x07, 0x04}, {0x08, 0x32},
-    {0x0B, 0x06}, {0x0C, 0x00}, {0x10, 0x8A}, {0x11, 0x83}, {0x12, 0x30},
+    {0x00, 0x0D}, {0x02, 0x2E}, {0x03, 0x47}, {0x06, 0xFF}, {0x07, 0x04}, {0x08, 0x32},
+    {0x0B, 0x06}, {0x0C, 0x00}, {0x10, 0x8A}, {0x11, 0x83}, {0x12, 0x34},
     {0x13, 0x22}, {0x14, 0xF8}, {0x18, 0x18}, {0x19, 0x16}, {0x1B, 0x03},
     {0x1C, 0x40}, {0x1D, 0x91}, {0x21, 0x56}, {0x22, 0x11}, {0x23, 0xE9},
     {0x24, 0x2A}, {0x25, 0x00}, {0x26, 0x1F}, {0x2C, 0x81}, {0x2D, 0x35},
@@ -211,6 +213,18 @@ void cc1101_enter_tx_mode(cc1101_t *dev)
     cc1101_strobe(dev, CC1101_SIDLE);
     esp_rom_delay_us(200);
     cc1101_strobe(dev, CC1101_STX);
+    esp_rom_delay_us(1000);
+}
+
+/**
+ * Move to IDLE then RX so the demodulated OOK stream appears on GDO2. Called at
+ * startup and again after each transmit (the TX path leaves the chip idle).
+ */
+void cc1101_enter_rx_mode(cc1101_t *dev)
+{
+    cc1101_strobe(dev, CC1101_SIDLE);
+    esp_rom_delay_us(200);
+    cc1101_strobe(dev, CC1101_SRX);
     esp_rom_delay_us(1000);
 }
 

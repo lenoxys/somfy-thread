@@ -12,6 +12,9 @@
 #define CC1101_PIN_MOSI         18
 #define CC1101_PIN_CS           21
 #define CC1101_PIN_GD0          22
+// GDO2 carries the demodulated OOK data in RX (see ESPSomfy: GDO0=TX, GDO2=RX).
+// Wire the E07 module's GDO2 pad to this GPIO; groups with the other RF pins.
+#define CC1101_PIN_GD2          23
 
 #define BOARD_DEFAULT_FREQ_MHZ  433.42f
 #define BOARD_FREQ_MIN_MHZ      433.05f

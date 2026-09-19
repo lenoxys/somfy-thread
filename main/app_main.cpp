@@ -30,11 +30,14 @@
 #include <platform/PlatformManager.h>
 #include <lib/support/Span.h>
 #include <system/SystemClock.h>
+#include <esp_openthread_types.h>
+#include <platform/ESP32/OpenthreadLauncher.h>
 
 extern "C" {
 #include "board.h"
 #include "cc1101.h"
 #include "somfy_rts.h"
+#include "somfy_rx.h"
 #include "somfy_frame.h"
 #include "blind_store.h"
 }
@@ -52,6 +55,7 @@ static bool       s_rf_ok = false;
 typedef struct { int idx; uint8_t cmd; } rf_job_t;
 static QueueHandle_t s_rf_q;
 static uint16_t s_wc_ep_ids[BLIND_MAX_COUNT];
+static volatile int64_t s_last_tx_us = 0;
 
 /**
  * Worker that drains the RF queue and transmits. A send is several frames over
@@ -67,7 +71,9 @@ static void rf_task(void *arg)
         if (!s || !s_rf_ok) continue;
         int repeats = (job.cmd == SOMFY_PROG) ? 12 : 3;
         uint16_t rolling = blind_store_next_rolling(job.idx);
+        s_last_tx_us = esp_timer_get_time();
         somfy_rts_send(&s_rts, s->addr, rolling, s->freq_mhz, job.cmd, repeats);
+        somfy_rx_resume();
     }
 }
 
@@ -368,6 +374,50 @@ static void register_console(void)
 }
 
 /**
+ * Set a shade's lift position on the Matter thread. Argument packs endpoint id
+ * in the high 16 bits and position (0..10000) in the low 16.
+ */
+static void rx_pos_work(intptr_t arg)
+{
+    uint16_t ep = (uint16_t)((uint32_t)arg >> 16);
+    chip::app::DataModel::Nullable<chip::Percent100ths> pos((uint16_t)(arg & 0xFFFF));
+    WC::Attributes::CurrentPositionLiftPercent100ths::Set(ep, pos);
+    WC::Attributes::TargetPositionLiftPercent100ths::Set(ep, pos);
+}
+
+/**
+ * Receive-frame handler (called from the RX task). Logs every decoded frame —
+ * this is the sniffer, and unknown addresses reveal remotes to pair/import. For
+ * a known active shade it advances the rolling-code floor (so our next transmit
+ * is not stale-rejected) and mirrors the manual movement into Matter so Home
+ * Assistant reflects a remote used outside the automation. Frames within
+ * WC_RX_ECHO_GUARD_US of our own transmit are ignored as self-reception.
+ */
+#define WC_RX_ECHO_GUARD_US (1500 * 1000)
+extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
+{
+    int idx = -1;
+    for (int i = 0; i < BLIND_MAX_COUNT; i++) {
+        shade_t *s = blind_store_get(i);
+        if (s && s->active && s->addr == addr) { idx = i; break; }
+    }
+    ESP_LOGI(TAG, "[RX] addr=0x%06lX code=%u cmd=0x%X idx=%d",
+             (unsigned long)addr, code, cmd, idx);
+    if (idx < 0) return;
+    if (esp_timer_get_time() - s_last_tx_us < WC_RX_ECHO_GUARD_US) return;
+
+    shade_t *s = blind_store_get(idx);
+    if (code > s->rolling) { s->rolling = code; blind_store_save(); }
+
+    uint16_t pos;
+    if (cmd == SOMFY_UP)        pos = 0;
+    else if (cmd == SOMFY_DOWN) pos = 10000;
+    else                        return;  // MY/PROG/other: position unknown
+    intptr_t arg = ((intptr_t)s_wc_ep_ids[idx] << 16) | pos;
+    chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_pos_work, arg);
+}
+
+/**
  * Bring up storage, RF, the RF worker, the Matter node with one lift-only
  * WindowCovering endpoint per shade, and the serial console; then log the
  * onboarding codes. RF failure is non-fatal — Matter and config still run.
@@ -379,6 +429,8 @@ extern "C" void app_main(void)
     s_rf_ok = cc1101_init(&s_cc);
     if (s_rf_ok) s_rf_ok = somfy_rts_init(&s_rts, &s_cc);
     if (!s_rf_ok) ESP_LOGW(TAG, "RF disabled (CC1101 absent?) — Matter/config still run");
+    else if (!somfy_rx_init(&s_cc, app_on_rx_frame))
+        ESP_LOGW(TAG, "RX disabled — manual-remote sync unavailable, TX still works");
 
     s_rf_q = xQueueCreate(8, sizeof(rf_job_t));
     xTaskCreate(rf_task, "rf", 4096, NULL, 5, NULL);
@@ -403,6 +455,15 @@ extern "C" void app_main(void)
         s_wc_ep_ids[i] = id;
         s_wc_delegates[i].SetEndpoint(id);
     }
+
+#if CHIP_DEVICE_CONFIG_ENABLE_THREAD
+    esp_openthread_platform_config_t ot_config = {
+        .radio_config = { .radio_mode = RADIO_MODE_NATIVE },
+        .host_config  = { .host_connection_mode = HOST_CONNECTION_MODE_NONE },
+        .port_config  = { .storage_partition_name = "nvs", .netif_queue_size = 10, .task_queue_size = 10 },
+    };
+    set_openthread_platform_config(&ot_config);
+#endif
 
     esp_matter::start(app_event_cb);
 
