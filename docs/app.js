@@ -378,6 +378,19 @@ $("resetBtn").addEventListener("click", () => {
   if (confirm(t("confirm.reset"))) send("reset");
 });
 
+/** Apply a saved theme: "system" clears the override so the OS decides. */
+function applyTheme(v) {
+  if (v === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.dataset.theme = v;
+}
+const savedTheme = localStorage.getItem("theme") || "system";
+$("theme").value = savedTheme;
+applyTheme(savedTheme);
+$("theme").addEventListener("change", (e) => {
+  localStorage.setItem("theme", e.target.value);
+  applyTheme(e.target.value);
+});
+
 applyI18n();
 fetchReleases();
 setStep(0);

@@ -51,8 +51,6 @@ cc -Imain test/test_somfy_frame.c main/somfy_frame.c -o /tmp/t && /tmp/t
 
 Today this drives **Somfy RTS only** (433 MHz, OOK, rolling code in the clear) — which is why it can be reimplemented at all.
 
-TODO: **Theme** — dark / light / system theme toggle for the setup page.
-
 Making **RTS and io-homecontrol coexist** on the same device is a goal, not a promise. io is a different beast: 868/915 MHz (the 433 MHz CC1101 here physically can't reach it, so it needs a second radio), and bidirectional + AES-encrypted with a key-exchange pairing — there is no open io stack to build on, which is the real blocker. If that changes, the natural shape is a per-shade `protocol` tag: the WindowCovering endpoints and the whole config/backup flow stay identical, and only the RF dispatch branches on RTS vs io.
 
 ## Credits

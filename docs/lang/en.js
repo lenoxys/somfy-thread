@@ -3,7 +3,9 @@
 // add a language, then register it in i18n.js. English is the fallback.
 
 export default {
-  "app.tag": "Setup wizard",
+  "theme.system": "System theme",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
   "step.board": "Board",
   "step.shades": "Shades",
   "step.matter": "Matter",
