@@ -62,7 +62,14 @@ jobs:
           esptool.py --chip esp32c6 merge_bin -o "$GITHUB_WORKSPACE/firmware.bin" @flash_args
 
       - name: Attach firmware to release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          files: firmware.bin
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPLOAD_URL: ${{ github.event.release.upload_url }}
+        run: |
+          url="${UPLOAD_URL%%\{*}?name=firmware.bin"
+          curl -fsSL -X POST "$url" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$GITHUB_WORKSPACE/firmware.bin"
