@@ -86,12 +86,10 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
   display: flex; align-items: center; gap: .75rem; }
 .brand { font-weight: 800; font-size: 1.25rem; letter-spacing: -.02em; }
 .brand span { color: var(--yellow); }
-.theme { margin-left: auto; display: inline-flex; gap: 2px; padding: 2px;
-  background: rgba(255,255,255,.12); border-radius: 999px; }
-.theme button { display: grid; place-items: center; width: 1.9rem; height: 1.9rem;
-  padding: 0; border: 0; border-radius: 999px; background: transparent; color: #fff; cursor: pointer; }
-.theme button svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
-.theme button.active { background: var(--yellow); color: var(--navy); }
+.topbtn { margin-left: auto; display: inline-grid; place-items: center; width: 2rem; height: 2rem;
+  padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.12); color: #fff; cursor: pointer; }
+.topbtn:hover { background: rgba(255,255,255,.22); }
+.topbtn svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
 
 .iconbtn { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0;
   border: 1px solid var(--line); border-radius: 8px; background: var(--surface-alt);

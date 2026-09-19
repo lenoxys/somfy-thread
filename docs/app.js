@@ -382,28 +382,39 @@ $("resetBtn").addEventListener("click", () => {
   if (confirm(t("confirm.reset"))) send("reset");
 });
 
-/** Inline each [data-icon] element's SVG from icons/<name>.svg so it inherits currentColor. */
-function loadIcons() {
-  document.querySelectorAll("[data-icon]").forEach(async (el) => {
-    const r = await fetch(`./icons/${el.dataset.icon}.svg`);
-    if (r.ok) el.innerHTML = await r.text();
-  });
+const iconCache = {};
+
+/** Fetch icons/<name>.svg once (cached) so inlined SVG inherits currentColor. */
+async function icon(name) {
+  if (!(name in iconCache)) {
+    const r = await fetch(`./icons/${name}.svg`);
+    iconCache[name] = r.ok ? await r.text() : "";
+  }
+  return iconCache[name];
 }
 
-const themeBtns = [...document.querySelectorAll(".theme button")];
+/** Inline each [data-icon] element's SVG. */
+function loadIcons() {
+  document.querySelectorAll("[data-icon]").forEach(async (el) => { el.innerHTML = await icon(el.dataset.icon); });
+}
 
-/** Set the theme, persist it, and highlight the matching icon. "system" clears the override so the OS decides. */
-function setTheme(v) {
+const THEME_CYCLE = ["light", "dark", "system"];
+const themeBtn = $("theme");
+
+/** Apply a theme, persist it, and show its icon. "system" clears the override so the OS decides. */
+async function setTheme(v) {
   if (v === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.dataset.theme = v;
   localStorage.setItem("theme", v);
-  themeBtns.forEach((b) => b.classList.toggle("active", b.dataset.themeVal === v));
+  themeBtn.dataset.themeVal = v;
+  const label = t("theme." + v);
+  themeBtn.title = label;
+  themeBtn.setAttribute("aria-label", label);
+  themeBtn.innerHTML = await icon(v);
 }
-themeBtns.forEach((b) => {
-  const label = t("theme." + b.dataset.themeVal);
-  b.title = label;
-  b.setAttribute("aria-label", label);
-  b.addEventListener("click", () => setTheme(b.dataset.themeVal));
+themeBtn.addEventListener("click", () => {
+  const next = THEME_CYCLE[(THEME_CYCLE.indexOf(themeBtn.dataset.themeVal) + 1) % THEME_CYCLE.length];
+  setTheme(next);
 });
 setTheme(localStorage.getItem("theme") || "system");
 
