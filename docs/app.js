@@ -4,6 +4,8 @@
 // (shades, motor PROG/test, Matter pairing, backup). One page, all client-side;
 // only the firmware .bin is fetched (from GitHub Releases) when flashing.
 
+import { t, applyI18n } from "./i18n.js";
+
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
 
@@ -56,14 +58,14 @@ function selectRelease(idx) {
   const fb = $("fallback");
   if (!asset) {
     installer.removeAttribute("manifest");
-    fb.textContent = "This release has no .bin firmware asset.";
+    fb.textContent = t("release.noBin");
   } else {
     installer.setAttribute("manifest", manifestUrl(asset.browser_download_url));
     fb.textContent = "";
     const link = document.createElement("a");
     link.href = asset.browser_download_url;
-    link.textContent = "Download " + asset.name;
-    fb.append("Firefox/Safari: ", link, " and flash at offset 0 with esptool.");
+    link.textContent = t("release.download", { name: asset.name });
+    fb.append(t("release.fallbackPrefix"), link, t("release.fallbackSuffix"));
   }
   $("changelog").textContent = r.body || "(no notes)";
   $("changelogBox").hidden = false;
@@ -84,12 +86,12 @@ async function fetchReleases() {
 /** Fill the version chooser from `releases` and wire it to selectRelease. */
 function populateReleaseSelect() {
   const sel = $("release");
-  if (!releases.length) { sel.innerHTML = "<option>no releases published yet</option>"; return; }
+  if (!releases.length) { sel.innerHTML = ""; sel.append(new Option(t("release.none"))); return; }
   sel.innerHTML = "";
   releases.forEach((r, i) => {
     const o = document.createElement("option");
     o.value = String(i);
-    o.textContent = r.tag_name + (r.prerelease ? " (pre-release)" : "");
+    o.textContent = r.tag_name + (r.prerelease ? t("release.prerelease") : "");
     sel.append(o);
   });
   sel.addEventListener("change", () => selectRelease(Number(sel.value)));
@@ -173,7 +175,7 @@ function setStep(n) {
     li.classList.toggle("active", i === step);
     li.classList.toggle("done", i < step);
   });
-  $("back").disabled = step === 0;
+  $("back").hidden = step === 0;
   $("next").hidden = step === STEPS - 1;
   $("next").disabled = step === CONNECT_STEP && !connected;
 }
@@ -214,11 +216,11 @@ function motorTd(idx) {
   const cell = document.createElement("td");
   const acts = document.createElement("div");
   acts.className = "ctrls";
-  acts.append(mkBtn("PROG", () => send(`tx ${idx} prog`), "primary small"));
-  acts.append(mkBtn("Open", () => send(`tx ${idx} up`), "small"));
-  acts.append(mkBtn("Close", () => send(`tx ${idx} down`), "small"));
-  acts.append(mkBtn("My", () => send(`tx ${idx} my`), "small"));
-  acts.append(mkBtn("Stop", () => send(`tx ${idx} stop`), "small"));
+  acts.append(mkBtn(t("motor.prog"), () => send(`tx ${idx} prog`), "primary small"));
+  acts.append(mkBtn(t("motor.open"), () => send(`tx ${idx} up`), "small"));
+  acts.append(mkBtn(t("motor.close"), () => send(`tx ${idx} down`), "small"));
+  acts.append(mkBtn(t("motor.my"), () => send(`tx ${idx} my`), "small"));
+  acts.append(mkBtn(t("motor.stop"), () => send(`tx ${idx} stop`), "small"));
   cell.append(acts);
   return cell;
 }
@@ -258,14 +260,14 @@ function mkBtn(label, onClick, cls = "") {
 
 /** Open the serial port, start reading, then fingerprint the firmware. */
 async function connect() {
-  if (!("serial" in navigator)) { alert("Web Serial needs Chrome or Edge on desktop."); return; }
+  if (!("serial" in navigator)) { alert(t("alert.webserial")); return; }
   port = await navigator.serial.requestPort();
   await port.open({ baudRate: 115200 });
   writer = port.writable.getWriter();
   readLoop();
   connected = true;
   $("dot").classList.add("on");
-  $("statusText").textContent = "Connected";
+  $("statusText").textContent = t("status.connected");
   $("connect").disabled = true;
   await detect();
 }
@@ -279,9 +281,9 @@ async function releasePort() {
   try { if (port) await port.close(); } catch (e) { /* already closing */ }
   writer = null; port = null; connected = false;
   $("dot").classList.remove("on");
-  $("statusText").textContent = "Disconnected";
+  $("statusText").textContent = t("status.disconnected");
   $("connect").disabled = false;
-  $("connect").textContent = "Re-check board";
+  $("connect").textContent = t("board.recheck");
   $("next").disabled = true;
 }
 
@@ -293,7 +295,7 @@ async function releasePort() {
 async function detect() {
   const det = $("detect");
   det.hidden = false;
-  det.textContent = "Checking the board…";
+  det.textContent = t("detect.checking");
   let ver = null;
   try {
     const line = await request("version", (l) => l.startsWith("somfy-thread "), 2500);
@@ -301,7 +303,7 @@ async function detect() {
   } catch (e) { /* not a somfy-thread board (or blank) */ }
 
   if (!ver) {
-    det.textContent = "No somfy-thread firmware detected. Pick a version and flash it.";
+    det.textContent = t("detect.none");
     await beginFlash();
     return;
   }
@@ -311,10 +313,9 @@ async function detect() {
   const latest = releases[0] ? releases[0].tag_name : null;
   const outdated = latest && !norm(ver).startsWith(norm(latest)) && !norm(latest).startsWith(norm(ver));
   det.textContent = "";
-  det.append(outdated ? `somfy-thread ${ver} installed — ${latest} available. `
-                      : `somfy-thread ${ver} — up to date. `);
-  det.append(mkBtn("Continue to config", () => setStep(step + 1), "primary small"));
-  if (outdated) det.append(mkBtn("Update firmware", () => beginFlash(), "small"));
+  det.append(outdated ? t("detect.outdated", { ver, latest }) : t("detect.current", { ver }));
+  det.append(mkBtn(t("detect.continue"), () => setStep(step + 1), "primary small"));
+  if (outdated) det.append(mkBtn(t("detect.update"), () => beginFlash(), "small"));
   $("next").disabled = false;
 }
 
@@ -357,11 +358,12 @@ async function getPairing() {
   const code = $("paircode");
   code.hidden = false;
   code.textContent = manual;
-  $("qrpayload").textContent = qr ? "QR payload: " + qr : "";
+  $("qrpayload").textContent = qr ? t("matter.qr", { qr }) : "";
 }
 
 /* ── wiring ───────────────────────────────────────────────────────────── */
 
+$("ack").addEventListener("change", (e) => { $("connect").disabled = !e.target.checked; });
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 $("refresh").addEventListener("click", () => refresh().catch((e) => log("ERR " + e.message)));
 $("next").addEventListener("click", () => setStep(step + 1));
@@ -373,8 +375,9 @@ $("importFile").addEventListener("change", (e) => {
 });
 $("pairBtn").addEventListener("click", () => getPairing().catch((e) => log("ERR " + e.message)));
 $("resetBtn").addEventListener("click", () => {
-  if (confirm("Factory-reset Matter and reboot the device?")) send("reset");
+  if (confirm(t("confirm.reset"))) send("reset");
 });
 
+applyI18n();
 fetchReleases();
 setStep(0);

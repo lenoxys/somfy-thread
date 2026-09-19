@@ -11,40 +11,42 @@
 <body>
 <header class="topbar">
   <span class="brand">somfy<span>-thread</span></span>
-  <span class="tag">Setup wizard</span>
+  <span class="tag" data-i18n="app.tag"></span>
 </header>
 
 <main>
   <ol class="stepper" id="stepper">
-    <li>Board</li>
-    <li>Shades</li>
-    <li>Matter</li>
-    <li>Backup</li>
+    <li data-i18n="step.board"></li>
+    <li data-i18n="step.shades"></li>
+    <li data-i18n="step.matter"></li>
+    <li data-i18n="step.backup"></li>
   </ol>
 
   <!-- Step 0 — Board: connect, detect firmware, then update / flash / continue -->
   <section class="card step" data-step="0">
-    <h2>Connect your board</h2>
-    <p class="muted">Somfy RTS blinds over Matter-over-Thread on an ESP32-C6 + CC1101. Use Chrome or Edge on desktop, plug the board into USB, then connect — we'll check what's on it.</p>
+    <h2 data-i18n="board.title"></h2>
+    <p class="muted" data-i18n="board.intro"></p>
+    <div class="callout" data-i18n="compat.warn"></div>
+    <label class="ack"><input type="checkbox" id="ack"> <span data-i18n="compat.ack"></span></label>
     <div class="bar">
-      <button id="connect" class="btn primary">Connect board</button>
-      <span class="status"><span class="dot" id="dot"></span><span id="statusText">Disconnected</span></span>
+      <button id="connect" class="btn primary" disabled data-i18n="board.connect"></button>
+      <span class="status"><span class="dot" id="dot"></span><span id="statusText" data-i18n="status.disconnected"></span></span>
     </div>
-    <p class="muted">In the browser's port list, pick <strong>USB JTAG/serial debug unit</strong> — that's the ESP32-C6's native USB. On boards with a USB-to-UART bridge it shows instead as <strong>CP210x</strong>, <strong>CP2104</strong>, or <strong>CH340</strong>. Ignore Bluetooth and audio entries. Unsure? Unplug the board and watch which name disappears.</p>
+    <p class="muted" data-i18n-html="board.portHint"></p>
     <div id="detect" class="callout" hidden></div>
     <div id="flasher" hidden>
       <div class="bar">
-        <label for="release">Firmware version</label>
-        <select id="release"><option>loading releases…</option></select>
+        <label for="release" data-i18n="flasher.versionLabel"></label>
+        <select id="release"><option data-i18n="flasher.loading"></option></select>
       </div>
       <esp-web-install-button id="installer">
-        <button slot="activate" class="btn primary">Flash to device</button>
-        <span slot="unsupported" class="muted">This browser can't flash over USB — use Chrome or Edge, or download the .bin below.</span>
-        <span slot="not-allowed" class="muted">Flashing needs a secure (https) page.</span>
+        <button slot="activate" class="btn primary" data-i18n="flasher.flash"></button>
+        <span slot="unsupported" class="muted" data-i18n="flasher.unsupported"></span>
+        <span slot="not-allowed" class="muted" data-i18n="flasher.notAllowed"></span>
       </esp-web-install-button>
       <p class="muted" id="fallback"></p>
       <details id="changelogBox" hidden>
-        <summary>Release notes</summary>
+        <summary data-i18n="flasher.releaseNotes"></summary>
         <pre id="changelog"></pre>
       </details>
     </div>
@@ -52,46 +54,46 @@
 
   <!-- Step 1 — Shades (one shade = one Somfy motor) -->
   <section class="card step" data-step="1" hidden>
-    <h2>Your shades</h2>
-    <p class="muted">Each shade is one roller blind driven by one Somfy motor. Name it, program its motor (PROG), and test movement — all here. Address and rolling code are only needed when restoring a backup.</p>
-    <div class="callout">To program a motor: press and hold the <strong>PROG</strong> button on the motor's existing remote until it jogs, then click <strong>PROG</strong> in that row within a few seconds. The motor jogs again to confirm. This Somfy RF link is separate from Matter (next step).</div>
+    <h2 data-i18n="shades.title"></h2>
+    <p class="muted" data-i18n="shades.intro"></p>
+    <div class="callout" data-i18n-html="shades.progHelp"></div>
     <table>
-      <thead><tr><th>#</th><th>Name</th><th>Freq (MHz)</th><th>Address</th><th>Rolling</th><th>On</th><th>Motor</th></tr></thead>
+      <thead><tr><th>#</th><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.freq"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th><th data-i18n="shades.col.on"></th><th data-i18n="shades.col.motor"></th></tr></thead>
       <tbody id="manageBody"></tbody>
     </table>
-    <div class="bar"><button id="refresh" class="btn small">Reload from device</button></div>
+    <div class="bar"><button id="refresh" class="btn small" data-i18n="shades.reload"></button></div>
   </section>
 
   <!-- Step 2 — Matter -->
   <section class="card step" data-step="2" hidden>
-    <h2>Add to your smart home</h2>
-    <p class="muted">This is a standard Matter-over-Thread device. Get the code below and add it in whatever app or hub you use — the controller doesn't matter.</p>
-    <div class="callout">Commissioning happens over Bluetooth, then the device joins your Thread network — so you need a Thread border router reachable on that network (built into many hubs/speakers; any brand works). Keep the board near the phone while pairing. This is separate from the Somfy RF PROG you did per shade.</div>
-    <div class="bar"><button id="pairBtn" class="btn primary">Get pairing code</button></div>
+    <h2 data-i18n="matter.title"></h2>
+    <p class="muted" data-i18n="matter.intro"></p>
+    <div class="callout" data-i18n="matter.help"></div>
+    <div class="bar"><button id="pairBtn" class="btn primary" data-i18n="matter.getCode"></button></div>
     <div id="paircode" class="paircode" hidden></div>
     <div id="qrpayload" class="qr"></div>
   </section>
 
   <!-- Step 3 — Backup -->
   <section class="card step" data-step="3" hidden>
-    <h2>Back up your setup</h2>
-    <p class="muted">Save a JSON backup (addresses + rolling codes) to your disk. Import it later to restore, or to migrate to a new device.</p>
+    <h2 data-i18n="backup.title"></h2>
+    <p class="muted" data-i18n="backup.intro"></p>
     <div class="bar">
-      <button id="export" class="btn primary">Download backup</button>
-      <button id="import" class="btn">Import backup…</button>
+      <button id="export" class="btn primary" data-i18n="backup.download"></button>
+      <button id="import" class="btn" data-i18n="backup.import"></button>
       <input type="file" id="importFile" accept="application/json" hidden>
     </div>
-    <div class="callout">You're all set. Reopen this page any time to add shades, re-pair, or restore.</div>
-    <div class="bar"><button id="resetBtn" class="btn danger small">Factory-reset the device</button></div>
+    <div class="callout" data-i18n="backup.done"></div>
+    <div class="bar"><button id="resetBtn" class="btn danger small" data-i18n="backup.reset"></button></div>
   </section>
 
   <div class="wiznav">
-    <button id="back" class="btn ghost" disabled>Back</button>
-    <button id="next" class="btn primary">Next</button>
+    <button id="back" class="btn ghost" hidden data-i18n="nav.back"></button>
+    <button id="next" class="btn primary" data-i18n="nav.next"></button>
   </div>
 
   <details class="log-wrap">
-    <summary>Serial log</summary>
+    <summary data-i18n="log.title"></summary>
     <div id="log"></div>
   </details>
 </main>

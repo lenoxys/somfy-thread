@@ -77,6 +77,7 @@ code { background: #EEEFF4; padding: .1em .35em; border-radius: 4px; font-size: 
 .callout { background: #FFF7E0; border: 1px solid #FCE29A; border-radius: 8px;
   padding: .75rem .9rem; margin: .75rem 0; font-size: .92rem; }
 .callout .btn { margin: .4rem .4rem 0 0; }
+.ack { display: flex; gap: .5rem; align-items: center; font-size: .92rem; margin: 0 0 .75rem; }
 
 /* tables & inputs */
 table { border-collapse: collapse; width: 100%; }
