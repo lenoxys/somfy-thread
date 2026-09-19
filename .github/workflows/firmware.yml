@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Unlicense
-# Build the ESP32-C6 firmware and attach a merged firmware.bin (flashable at
-# offset 0 by ESP Web Tools) to the GitHub Release when it is published.
+# Build the ESP32-C6 firmware, attest its provenance (SLSA/Sigstore), and attach
+# the merged firmware.bin (flashable at offset 0 by ESP Web Tools) to the GitHub
+# Release when it is published. workflow_dispatch runs a manual test build (it
+# builds and attests but attaches nothing, since there's no release to attach to).
 #
 # ponytail: building esp-matter from source is the slow/fragile step (submodule
 # checkout + bootstrap, tens of minutes). Pinned to a tag; bump ESP_MATTER_REF
@@ -15,6 +17,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
   ESP_MATTER_REF: v1.4
@@ -29,6 +33,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: somfy-thread
+          persist-credentials: false
 
       - name: Cache esp-matter
         id: cache-matter
@@ -60,6 +65,11 @@ jobs:
           idf.py build
           cd build
           esptool.py --chip esp32c6 merge_bin -o "$GITHUB_WORKSPACE/firmware.bin" @flash_args
+
+      - name: Attest firmware provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ github.workspace }}/firmware.bin
 
       - name: Attach firmware to release
         if: github.event_name == 'release'

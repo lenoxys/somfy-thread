@@ -23,6 +23,8 @@ Default carrier 433.42 MHz; per-shade frequency is tunable (a real crystal drift
 Open the project page in a Chromium-based browser (Chrome/Edge), plug the board into USB, and follow the wizard — everything runs in the browser and nothing is sent anywhere.
 
 - **Board** — connect over Web Serial; the page reads the firmware version. If it's current you continue straight to config; if a newer release exists you can update; if no somfy-thread firmware is found it flashes one with [ESP Web Tools](https://esphome.github.io/esp-web-tools/). Firefox/Safari don't support Web Serial — download the `.bin` and flash with `esptool` instead.
+
+Each released `firmware.bin` carries a build-provenance attestation, so you can confirm it was built by this repo's workflow: `gh attestation verify firmware.bin --repo lenoxys/somfy-thread`.
 - **Shades** — each shade is one motor: name it, run **PROG** (then long-press PROG on the motor's existing remote to pair), and test with **Open / Close / My / Stop**. Address and rolling code are only needed when restoring a backup.
 - **Matter** — get the pairing code and add the device to any Matter controller.
 - **Backup** — **export** a JSON backup and **import** it back to restore or migrate.
