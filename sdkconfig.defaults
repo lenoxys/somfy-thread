@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Unlicense
+# Build defaults for ESP32-C6 Matter-over-Thread, headless (USB Serial/JTAG
+# console, no Wi-Fi). Run `idf.py set-target esp32c6` before the first build.
+CONFIG_IDF_TARGET="esp32c6"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Console over the C6 native USB Serial/JTAG (no UART bridge on the C6-Zero).
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Custom partition table with dual OTA slots + factory NVS.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# BLE for commissioning only (Thread carries operational traffic).
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_EXT_ADV=n
+CONFIG_USE_BLE_ONLY_FOR_COMMISSIONING=y
+
+# OpenThread end device with SRP/DNS clients; no Wi-Fi.
+CONFIG_OPENTHREAD_ENABLED=y
+CONFIG_OPENTHREAD_SRP_CLIENT=y
+CONFIG_OPENTHREAD_DNS_CLIENT=y
+CONFIG_OPENTHREAD_CLI=n
+CONFIG_ENABLE_WIFI_STATION=n
+CONFIG_ENABLE_WIFI_AP=n
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
+
+# LwIP/IPv6 for Thread (no autoconfig; addresses per fabric).
+CONFIG_LWIP_IPV6_AUTOCONFIG=n
+CONFIG_LWIP_IPV6_NUM_ADDRESSES=8
+CONFIG_LWIP_MULTICAST_PING=y
+
+# mDNS / discovery.
+CONFIG_USE_MINIMAL_MDNS=n
+CONFIG_ENABLE_EXTENDED_DISCOVERY=y
+
+# esp-matter console shell (host of our config commands).
+CONFIG_ENABLE_CHIP_SHELL=y
+
+# OTA requestor so firmware can be updated over Matter.
+CONFIG_ENABLE_OTA_REQUESTOR=y
+
+# Eight WindowCovering endpoints as dynamic endpoints.
+CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=16
+
+# mbedTLS bits Matter needs.
+CONFIG_MBEDTLS_HKDF_C=y
+CONFIG_LIBSODIUM_USE_MBEDTLS_SHA=y
+
+# Optimise for size — the app must fit the 0x1E0000 OTA slot.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y

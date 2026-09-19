@@ -1,0 +1,25 @@
+# ESP-IDF / build
+build/
+build-*/
+sdkconfig
+sdkconfig.old
+version.txt
+managed_components/
+dependencies.lock
+*.pyc
+__pycache__/
+
+# host test binaries
+/tmp/t
+test/t
+
+# vendored third-party JS (fetched by docs/vendor/fetch.sh at build time)
+docs/vendor/*.js
+
+# vendor hardware reference (Ebyte E07 datasheets/PCB libs — kept local, not redistributed)
+doc/
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store

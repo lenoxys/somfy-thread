@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Unlicense
+# Build the ESP32-C6 firmware and attach a merged firmware.bin (flashable at
+# offset 0 by ESP Web Tools) to the GitHub Release when it is published.
+#
+# ponytail: building esp-matter from source is the slow/fragile step (submodule
+# checkout + bootstrap, tens of minutes). Pinned to a tag; bump ESP_MATTER_REF
+# and IDF image together when upgrading. If a prebuilt esp-matter image becomes
+# available, swap the clone/install steps for `container:`.
+name: firmware
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  ESP_MATTER_REF: v1.4
+  IDF_IMAGE: espressif/idf:v5.4
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: somfy-thread
+
+      - name: Cache esp-matter
+        id: cache-matter
+        uses: actions/cache@v4
+        with:
+          path: esp-matter
+          key: esp-matter-${{ env.ESP_MATTER_REF }}
+
+      - name: Clone & bootstrap esp-matter
+        if: steps.cache-matter.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          git clone --depth 1 -b "$ESP_MATTER_REF" --recursive \
+            https://github.com/espressif/esp-matter.git
+          cd esp-matter && ./install.sh
+
+      - name: Build
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          export ESP_MATTER_PATH="$GITHUB_WORKSPACE/esp-matter"
+          . "$ESP_MATTER_PATH/export.sh"
+          cd somfy-thread
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            echo "${{ github.event.release.tag_name }}" > version.txt
+          fi
+          idf.py set-target esp32c6
+          idf.py build
+          cd build
+          esptool.py --chip esp32c6 merge_bin -o "$GITHUB_WORKSPACE/firmware.bin" @flash_args
+
+      - name: Attach firmware to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: firmware.bin
