@@ -28,4 +28,6 @@ set(EXTRA_COMPONENT_DIRS
     "${ESP_MATTER_PATH}/device_hal/device"
     ${extra_components_dirs_append})
 
+idf_build_set_property(CXX_COMPILE_OPTIONS "-DCHIP_HAVE_CONFIG_H" APPEND)
+
 project(somfy_thread)

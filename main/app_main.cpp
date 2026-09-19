@@ -20,8 +20,10 @@
 #include <esp_matter_console.h>
 #include <app/clusters/window-covering-server/window-covering-server.h>
 #include <app-common/zap-generated/cluster-objects.h>
-#include <setup_payload/OnboardingCodesUtil.h>
+#include <app-common/zap-generated/attributes/Accessors.h>
+#include <app/server/OnboardingCodesUtil.h>
 #include <setup_payload/SetupPayload.h>
+#include <setup_payload/QRCodeSetupPayloadGenerator.h>
 #include <app/server/Server.h>
 #include <app/server/CommissioningWindowManager.h>
 #include <credentials/FabricTable.h>
@@ -384,17 +386,19 @@ extern "C" void app_main(void)
     node::config_t node_config;
     node_t *node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
-        window_covering::config_t wc;
+        window_covering_device::config_t wc;
         wc.window_covering.type = 0x00;
-        wc.window_covering.feature_flags =
-            (uint32_t)WC::Feature::kLift | (uint32_t)WC::Feature::kPositionAwareLift;
-        wc.window_covering.features.position_aware_lift.current_position_lift_percent_100ths =
-            nullable<uint16_t>(0);
-        wc.window_covering.features.position_aware_lift.target_position_lift_percent_100ths =
-            nullable<uint16_t>(0);
         wc.window_covering.delegate = &s_wc_delegates[i];
-        endpoint_t *ep = window_covering::create(node, &wc, ENDPOINT_FLAG_NONE, NULL);
+        endpoint_t *ep = window_covering_device::create(node, &wc, ENDPOINT_FLAG_NONE, NULL);
         if (!ep) { ESP_LOGE(TAG, "endpoint %d create failed", i); continue; }
+
+        cluster_t *wc_cluster = cluster::get(ep, WC::Id);
+        cluster::window_covering::feature::lift::config_t lift_cfg;
+        cluster::window_covering::feature::lift::add(wc_cluster, &lift_cfg);
+        cluster::window_covering::feature::position_aware_lift::config_t pal_cfg;
+        pal_cfg.current_position_lift_percent_100ths = nullable<uint16_t>(0);
+        pal_cfg.target_position_lift_percent_100ths = nullable<uint16_t>(0);
+        cluster::window_covering::feature::position_aware_lift::add(wc_cluster, &pal_cfg);
         uint16_t id = endpoint::get_id(ep);
         s_wc_ep_ids[i] = id;
         s_wc_delegates[i].SetEndpoint(id);
