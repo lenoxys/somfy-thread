@@ -4,10 +4,9 @@
 # Release when it is published. workflow_dispatch runs a manual test build (it
 # builds and attests but attaches nothing, since there's no release to attach to).
 #
-# ponytail: building esp-matter from source is the slow/fragile step (submodule
-# checkout + bootstrap, tens of minutes). Pinned to a release branch; bump ESP_MATTER_REF
-# and IDF image together when upgrading. If a prebuilt esp-matter image becomes
-# available, swap the clone/install steps for `container:`.
+# Uses Espressif's prebuilt esp-matter image (esp-idf + esp-matter already
+# installed) so there's no clone/bootstrap. Bump the image tag when upgrading;
+# the env paths (IDF_PATH, ESP_MATTER_PATH) are baked into the image.
 name: firmware
 
 on:
@@ -20,45 +19,22 @@ permissions:
   id-token: write
   attestations: write
 
-env:
-  ESP_MATTER_REF: release/v1.4
-  IDF_IMAGE: espressif/idf:v5.4
-
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: espressif/idf:v5.4
+      image: espressif/esp-matter:release-v1.4_idf_v5.4.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: somfy-thread
           persist-credentials: false
-
-      - name: Cache esp-matter
-        id: cache-matter
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: esp-matter
-          key: esp-matter-${{ env.ESP_MATTER_REF }}
-
-      - name: Clone & bootstrap esp-matter
-        if: steps.cache-matter.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          apt-get update && apt-get install -y python3-dev
-          . $IDF_PATH/export.sh
-          git clone --depth 1 -b "$ESP_MATTER_REF" --recursive \
-            https://github.com/espressif/esp-matter.git
-          cd esp-matter && ./install.sh
 
       - name: Build
         shell: bash
         run: |
-          . $IDF_PATH/export.sh
-          export ESP_MATTER_PATH="$GITHUB_WORKSPACE/esp-matter"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          . "$IDF_PATH/export.sh"
           . "$ESP_MATTER_PATH/export.sh"
-          cd somfy-thread
           VER="${{ github.event.release.tag_name }}"
           [ -n "$VER" ] && echo "$VER" > version.txt || VER=dev
           BIN="somfy-thread-esp32c6-$VER.bin"
