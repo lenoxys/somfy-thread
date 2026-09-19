@@ -46,6 +46,7 @@ jobs:
         if: steps.cache-matter.outputs.cache-hit != 'true'
         shell: bash
         run: |
+          apt-get update && apt-get install -y python3-dev
           . $IDF_PATH/export.sh
           git clone --depth 1 -b "$ESP_MATTER_REF" --recursive \
             https://github.com/espressif/esp-matter.git
