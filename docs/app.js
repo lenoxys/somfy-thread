@@ -94,7 +94,7 @@ function populateReleaseSelect() {
     o.textContent = r.tag_name + (r.prerelease ? t("release.prerelease") : "");
     sel.append(o);
   });
-  sel.addEventListener("change", () => selectRelease(Number(sel.value)));
+  sel.onchange = () => selectRelease(Number(sel.value));
   selectRelease(0);
 }
 
@@ -366,6 +366,10 @@ async function getPairing() {
 $("ack").addEventListener("change", (e) => { $("connect").disabled = !e.target.checked; });
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 $("refresh").addEventListener("click", () => refresh().catch((e) => log("ERR " + e.message)));
+$("refreshReleases").title = t("flasher.refresh");
+$("refreshReleases").setAttribute("aria-label", t("flasher.refresh"));
+$("refreshReleases").addEventListener("click", () =>
+  fetchReleases().then(populateReleaseSelect).catch((e) => log("ERR " + e.message)));
 $("next").addEventListener("click", () => setStep(step + 1));
 $("back").addEventListener("click", () => setStep(step - 1));
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
@@ -377,6 +381,14 @@ $("pairBtn").addEventListener("click", () => getPairing().catch((e) => log("ERR 
 $("resetBtn").addEventListener("click", () => {
   if (confirm(t("confirm.reset"))) send("reset");
 });
+
+/** Inline each [data-icon] element's SVG from icons/<name>.svg so it inherits currentColor. */
+function loadIcons() {
+  document.querySelectorAll("[data-icon]").forEach(async (el) => {
+    const r = await fetch(`./icons/${el.dataset.icon}.svg`);
+    if (r.ok) el.innerHTML = await r.text();
+  });
+}
 
 const themeBtns = [...document.querySelectorAll(".theme button")];
 
@@ -395,6 +407,7 @@ themeBtns.forEach((b) => {
 });
 setTheme(localStorage.getItem("theme") || "system");
 
+loadIcons();
 applyI18n();
 fetchReleases();
 setStep(0);

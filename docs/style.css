@@ -93,6 +93,12 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 .theme button svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
 .theme button.active { background: var(--yellow); color: var(--navy); }
 
+.iconbtn { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface-alt);
+  color: var(--fg); cursor: pointer; }
+.iconbtn:hover { border-color: var(--navy); }
+.iconbtn svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
+
 /* cards */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding: 1.25rem; margin: 1rem 0; }

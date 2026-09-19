@@ -27,6 +27,7 @@ export default {
   "flasher.unsupported": "This browser can't flash over USB — use Chrome or Edge, or download the .bin below.",
   "flasher.notAllowed": "Flashing needs a secure (https) page.",
   "flasher.releaseNotes": "Release notes",
+  "flasher.refresh": "Refresh releases",
 
   "detect.checking": "Checking the board…",
   "detect.none": "No somfy-thread firmware detected. Pick a version and flash it.",

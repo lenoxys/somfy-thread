@@ -5,7 +5,7 @@
 # builds and attests but attaches nothing, since there's no release to attach to).
 #
 # ponytail: building esp-matter from source is the slow/fragile step (submodule
-# checkout + bootstrap, tens of minutes). Pinned to a tag; bump ESP_MATTER_REF
+# checkout + bootstrap, tens of minutes). Pinned to a release branch; bump ESP_MATTER_REF
 # and IDF image together when upgrading. If a prebuilt esp-matter image becomes
 # available, swap the clone/install steps for `container:`.
 name: firmware
@@ -21,7 +21,7 @@ permissions:
   attestations: write
 
 env:
-  ESP_MATTER_REF: v1.4
+  ESP_MATTER_REF: release/v1.4
   IDF_IMAGE: espressif/idf:v5.4
 
 jobs:
