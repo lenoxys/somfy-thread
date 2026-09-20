@@ -168,13 +168,15 @@ static SomfyWCDelegate s_wc_delegates[BLIND_MAX_COUNT];
  * Attach the lift-only WindowCovering device type (Identify/Groups/Scenes/WC
  * plus the lift + position-aware-lift features) to a bare endpoint, binding
  * shade `idx`'s delegate. Mirrors the feature set the firmware has always used.
+ * @return ESP_OK, or the error from window_covering_device::add.
  */
-static void wc_add_clusters(endpoint_t *ep, int idx)
+static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
 {
     window_covering_device::config_t wc;
     wc.window_covering.type = 0x00;
     wc.window_covering.delegate = &s_wc_delegates[idx];
-    window_covering_device::add(ep, &wc);
+    esp_err_t err = window_covering_device::add(ep, &wc);
+    if (err != ESP_OK) return err;
 
     cluster_t *wc_cluster = cluster::get(ep, WC::Id);
     cluster::window_covering::feature::lift::config_t lift_cfg;
@@ -183,6 +185,7 @@ static void wc_add_clusters(endpoint_t *ep, int idx)
     pal_cfg.current_position_lift_percent_100ths = nullable<uint16_t>(0);
     pal_cfg.target_position_lift_percent_100ths = nullable<uint16_t>(0);
     cluster::window_covering::feature::position_aware_lift::add(wc_cluster, &pal_cfg);
+    return ESP_OK;
 }
 
 /**
@@ -200,14 +203,17 @@ static bool wc_endpoint_up(int idx)
     endpoint_t *ep = s->ep_id
         ? endpoint::resume(s_node, ENDPOINT_FLAG_DESTROYABLE, s->ep_id, NULL)
         : endpoint::create(s_node, ENDPOINT_FLAG_DESTROYABLE, NULL);
-    if (!ep) return false;
-    wc_add_clusters(ep, idx);
+    if (!ep) { ESP_LOGE(TAG, "shade %d: endpoint create/resume returned NULL", idx); return false; }
+    esp_err_t cerr = wc_add_clusters(ep, idx);
+    if (cerr != ESP_OK) { ESP_LOGE(TAG, "shade %d: wc clusters failed (0x%x)", idx, cerr); return false; }
     uint16_t id = endpoint::get_id(ep);
     s->ep_id          = id;
     s_wc_eps[idx]     = ep;
     s_wc_ep_ids[idx]  = id;
     s_wc_delegates[idx].SetEndpoint(id);
-    return endpoint::enable(ep) == ESP_OK;
+    esp_err_t eerr = endpoint::enable(ep);
+    if (eerr != ESP_OK) ESP_LOGE(TAG, "shade %d: endpoint enable failed (0x%x)", idx, eerr);
+    return eerr == ESP_OK;
 }
 
 /**
@@ -225,20 +231,25 @@ static void wc_endpoint_down(int idx)
 
 /**
  * Take the CHIP stack lock and run wc_endpoint_up / _down. Endpoint lifecycle
- * ops must not race the Matter thread, and the console runs off it.
+ * ops must not race the Matter thread, and the console runs off it. chip_stack_lock
+ * returns ALREADY_TAKEN (not SUCCESS) when the calling task already holds the lock;
+ * in that case we proceed but must not unlock, or we would drop a lock we did not
+ * take. Only FAILED is a real error.
  */
 static bool locked_endpoint_up(int idx)
 {
-    if (esp_matter::lock::chip_stack_lock(portMAX_DELAY) != esp_matter::lock::SUCCESS) return false;
+    esp_matter::lock::status_t ls = esp_matter::lock::chip_stack_lock(portMAX_DELAY);
+    if (ls == esp_matter::lock::FAILED) { ESP_LOGE(TAG, "shade %d: chip_stack_lock FAILED", idx); return false; }
     bool ok = wc_endpoint_up(idx);
-    esp_matter::lock::chip_stack_unlock();
+    if (ls != esp_matter::lock::ALREADY_TAKEN) esp_matter::lock::chip_stack_unlock();
     return ok;
 }
 static void locked_endpoint_down(int idx)
 {
-    if (esp_matter::lock::chip_stack_lock(portMAX_DELAY) != esp_matter::lock::SUCCESS) return;
+    esp_matter::lock::status_t ls = esp_matter::lock::chip_stack_lock(portMAX_DELAY);
+    if (ls == esp_matter::lock::FAILED) return;
     wc_endpoint_down(idx);
-    esp_matter::lock::chip_stack_unlock();
+    if (ls != esp_matter::lock::ALREADY_TAKEN) esp_matter::lock::chip_stack_unlock();
 }
 
 /**

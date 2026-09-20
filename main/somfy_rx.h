@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Unlicense
 // Somfy RTS receiver: captures the demodulated OOK pulse train on the CC1101
-// GDO2 pin with an RMT RX channel and decodes RTS frames, so manually-operated
-// remotes are seen (Somfy is otherwise one-way). Decode logic lives in
-// somfy_frame.c; this file is the RMT plumbing and the listening task.
+// GDO2 pin with a GPIO any-edge interrupt and decodes RTS frames, so manually-
+// operated remotes are seen (Somfy is otherwise one-way). Decode logic lives in
+// somfy_frame.c; this file is the edge-timing ISR and the listening task.
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
@@ -19,9 +19,9 @@ extern "C" {
 typedef void (*somfy_rx_cb_t)(uint32_t addr, uint16_t code, uint8_t cmd);
 
 /**
- * Create the RMT RX channel on CC1101_PIN_GD2, start the listening task, and put
- * the radio in RX. `cb` fires for each valid frame.
- * @return false if the RMT channel, queue, or task cannot be created.
+ * Attach the any-edge interrupt on CC1101_PIN_GD2, start the listening task, and
+ * put the radio in RX. `cb` fires for each valid frame.
+ * @return false if the GPIO interrupt, queue, or task cannot be created.
  */
 bool somfy_rx_init(cc1101_t *cc, somfy_rx_cb_t cb);
 
