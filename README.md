@@ -39,6 +39,8 @@ Open the project page in a Chromium-based browser (Chrome/Edge), plug the board 
 Each release ships a `somfy-thread-esp32c6-<version>.bin` carrying a build-provenance attestation, so you can confirm it was built by this repo's workflow: `gh attestation verify somfy-thread-esp32c6-<version>.bin --repo lenoxys/somfy-thread`.
 - **Shades** — each shade is one motor: name it, run **PROG** (then long-press PROG on the motor's existing remote to pair), and test with **Open / Close / My / Stop**. Address and rolling code are only needed when restoring a backup.
 - **Matter** — get the pairing code and add the device to any Matter controller.
+
+  > **Test certificate — allow it on your controller.** Builds currently ship an uncertified **test/development attestation certificate**, so any controller with a production trust policy refuses the device until you allow test certificates. In **Home Assistant** (Matter Server) turn on **"Enable test-net DCL usage."** before pairing. Controllers that offer no such override — notably **Apple Home** and **Google Home** — will not add the device at all until the project ships a certified identity.
 - **Backup** — **export** a JSON backup and **import** it back to restore or migrate.
 
 Rolling codes are persisted to flash before every transmit, so a reboot never rewinds them.

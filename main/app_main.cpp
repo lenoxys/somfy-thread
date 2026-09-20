@@ -33,7 +33,10 @@
 #include <lib/support/Span.h>
 #include <system/SystemClock.h>
 #include <esp_openthread_types.h>
+#include <esp_openthread_lock.h>
+#include <openthread/logging.h>
 #include <platform/ESP32/OpenthreadLauncher.h>
+#include <lib/support/logging/CHIPLogging.h>
 
 extern "C" {
 #include "board.h"
@@ -395,8 +398,13 @@ static bool wc_endpoint_up(int idx)
     if (!s) return false;
     endpoint_t *ep = s->ep_id
         ? endpoint::resume(s_node, ENDPOINT_FLAG_DESTROYABLE, s->ep_id, NULL)
-        : endpoint::create(s_node, ENDPOINT_FLAG_DESTROYABLE, NULL);
-    if (!ep) { ESP_LOGE(TAG, "shade %d: endpoint create/resume returned NULL", idx); return false; }
+        : NULL;
+    if (!ep && s->ep_id) {
+        ESP_LOGW(TAG, "shade %d: resume of ep_id %u failed (Matter min_unused counter reset by a factory_reset that kept shades) — assigning a fresh id", idx, s->ep_id);
+        s->ep_id = 0;
+    }
+    if (!ep) ep = endpoint::create(s_node, ENDPOINT_FLAG_DESTROYABLE, NULL);
+    if (!ep) { ESP_LOGE(TAG, "shade %d: endpoint create returned NULL", idx); return false; }
     esp_err_t cerr = wc_add_clusters(ep, idx);
     if (cerr != ESP_OK) { ESP_LOGE(TAG, "shade %d: wc clusters failed (0x%x)", idx, cerr); return false; }
     uint16_t id = endpoint::get_id(ep);
@@ -443,6 +451,40 @@ static void locked_endpoint_down(int idx)
     if (ls == esp_matter::lock::FAILED) return;
     wc_endpoint_down(idx);
     if (ls != esp_matter::lock::ALREADY_TAKEN) esp_matter::lock::chip_stack_unlock();
+}
+
+static bool s_diag_logs = true;
+
+/**
+ * Gate the chatty Thread (OpenThread) and Matter (CHIP) diagnostic logs. `on`
+ * keeps them at INFO/detail — wanted while bringing an un-onboarded device up;
+ * off drops to warnings/errors so a commissioned device runs quiet. Driven at
+ * boot from the commissioning state and by the `log` console command.
+ */
+static void set_diag_logs(bool on)
+{
+    if (esp_openthread_lock_acquire(portMAX_DELAY)) {
+        otLoggingSetLevel(on ? OT_LOG_LEVEL_INFO : OT_LOG_LEVEL_WARN);
+        esp_openthread_lock_release();
+    }
+#if CONFIG_CHIP_LOG_FILTERING
+    chip::Logging::SetLogFilter(on ? chip::Logging::kLogCategory_Detail
+                                   : chip::Logging::kLogCategory_Error);
+#endif
+}
+
+/**
+ * Report the running firmware version as the Matter Basic Information
+ * SoftwareVersionString (endpoint 0), so controllers show the real build id
+ * instead of CHIP's "1.0" default. Best-effort: if the attribute is absent the
+ * update just no-ops. Call after esp_matter::start().
+ */
+static void set_matter_version(void)
+{
+    const char *ver = esp_app_get_description()->version;
+    esp_matter_attr_val_t val = esp_matter_char_str((char *)ver, strlen(ver));
+    attribute::update(0, chip::app::Clusters::BasicInformation::Id,
+                      chip::app::Clusters::BasicInformation::Attributes::SoftwareVersionString::Id, &val);
 }
 
 /**
@@ -865,6 +907,12 @@ static int cmd_mstat(int, char **)  { printf("{\"fabrics\":%d}\n", app_matter_fa
 static int cmd_reset(int, char **)   { printf("OK resetting\n"); app_matter_factory_reset(0); return 0; }
 static int cmd_factory(int, char **) { printf("OK factory\n");   app_matter_factory_reset(1); return 0; }
 static int cmd_reboot(int, char **)  { printf("OK rebooting\n"); esp_restart(); return 0; }
+static int cmd_log(int argc, char **argv)
+{
+    if (argc >= 2) { s_diag_logs = atoi(argv[1]) != 0; set_diag_logs(s_diag_logs); }
+    printf("{\"log\":%d}\n", s_diag_logs ? 1 : 0);
+    return 0;
+}
 
 /**
  * Register the serial console commands that form the WebSerial contract.
@@ -873,6 +921,7 @@ static void register_console(void)
 {
     const esp_console_cmd_t cmds[] = {
         {"version","Print firmware id and version",          NULL, &cmd_version, NULL},
+        {"log",    "log [0|1] — get/set Thread+Matter diagnostic logging", NULL, &cmd_log, NULL},
         {"radio",  "Print radio status (rf, freq, rssi, power, rxbw + options) as JSON", NULL, &cmd_radio, NULL},
         {"list",   "List shades as JSON",                    NULL, &cmd_list,   NULL},
         {"add",    "add [hexaddr] [rolling] [name...] — register a shade", NULL, &cmd_add, NULL},
@@ -994,10 +1043,14 @@ extern "C" void app_main(void)
 
     esp_matter::start(app_event_cb);
 
+    set_matter_version();
     restore_endpoints();
 
     esp_matter::console::init();
     register_console();
+
+    s_diag_logs = app_matter_fabric_count() == 0;
+    set_diag_logs(s_diag_logs);
 
     ESP_LOGI(TAG, "Matter QR: %s", app_matter_qr());
     ESP_LOGI(TAG, "Matter manual code: %s", app_matter_manual());

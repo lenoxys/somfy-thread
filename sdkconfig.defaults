@@ -47,5 +47,13 @@ CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=32
 # mbedTLS bits Matter needs.
 CONFIG_MBEDTLS_HKDF_C=y
 
+# Runtime-gate Matter (CHIP) log verbosity via chip::Logging::SetLogFilter (the
+# `log` console command). OpenThread's level is already dynamic.
+CONFIG_CHIP_LOG_FILTERING=y
+
+# Show the device as somfy-thread (not CHIP's TEST_VENDOR/TEST_PRODUCT defaults)
+# in Basic Information. Cosmetic only — VID/PID stay at the example DAC's values.
+CONFIG_CHIP_PROJECT_CONFIG="main/somfy_chip_config.h"
+
 # Optimise for size — the app must fit the 0x1E0000 OTA slot.
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
