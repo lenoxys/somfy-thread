@@ -26,8 +26,9 @@ int main(void)
     assert(s->addr == 0x0000AA && s->rolling == 5 && s->enabled && s->ep_id == 0);
     assert(!s->remote);  // provenance defaults to PROG until cmd_add flags a clone
     // Position-estimate params default to unknown: no travel time (snap), no
-    // favourite, not inverted.
-    assert(s->up_ms == 0 && s->down_ms == 0 && s->my_pct == SHADE_MY_UNSET && !s->invert);
+    // favourite, not inverted, no startup lag, position 0 (open).
+    assert(s->up_ms == 0 && s->down_ms == 0 && s->my_pct == SHADE_MY_UNSET && !s->invert
+           && s->up_lag_ms == 0 && s->down_lag_ms == 0 && s->pos == 0);
     assert(strcmp(s->name, "kitchen") == 0);
 
     // Linked remote: none by default; set/seen advances the code only when newer;

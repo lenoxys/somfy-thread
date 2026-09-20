@@ -12,7 +12,7 @@ const logEl = $("log");
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
-const REQUIRED_PROTO = 5;
+const REQUIRED_PROTO = 6;
 
 /** Append a line to the on-screen serial log. */
 function log(s) {
@@ -326,6 +326,7 @@ function renderManage() {
     tr.classList.toggle("disabled", !s.on);
     tr.append(nameTd(s));
     tr.append(switchTd(s.on, (on) => save(`on ${s.idx} ${on ? 1 : 0}`)));
+    tr.append(posTd(s));
     tr.append(motorTd(s.idx));
     const rm = document.createElement("td");
     rm.append(mkBtn(t("shades.remove"), () => {
@@ -347,7 +348,9 @@ function renderManage() {
     const pr = document.createElement("tr");
     pr.append(td(s.name || String(s.idx)));
     pr.append(msTd(s, "up_ms"));
+    pr.append(msTd(s, "up_lag"));
     pr.append(msTd(s, "down_ms"));
+    pr.append(msTd(s, "down_lag"));
     pr.append(myTd(s));
     pr.append(switchTd(!!s.invert, (on) => savePos(s, { invert: on })));
     pos.append(pr);
@@ -355,15 +358,16 @@ function renderManage() {
 }
 
 /**
- * Commit shade `s`'s position-estimate params. The `pos` command takes all four
- * fields at once, so merge the patch over the current values and send the lot,
- * updating the local copy so a follow-up edit builds on fresh state without a
- * full refresh. `my` 255 means unset.
+ * Commit shade `s`'s position-estimate params. The `pos` command takes every
+ * field at once (travel times, favourite, invert, per-direction startup lag), so
+ * merge the patch over the current values and send the lot, updating the local
+ * copy so a follow-up edit builds on fresh state without a full refresh. `my` 255
+ * means unset.
  */
 function savePos(s, patch) {
   Object.assign(s, patch);
   const my = (s.my === undefined || s.my === "") ? 255 : s.my;
-  save(`pos ${s.idx} ${s.up_ms || 0} ${s.down_ms || 0} ${my} ${s.invert ? 1 : 0}`);
+  save(`pos ${s.idx} ${s.up_ms || 0} ${s.down_ms || 0} ${my} ${s.invert ? 1 : 0} ${s.up_lag || 0} ${s.down_lag || 0}`);
 }
 
 /** Travel-time cell: a millisecond input paired with a measuring stopwatch. */
@@ -396,6 +400,18 @@ function myTd(s) {
     savePos(s, { my: v });
   });
   cell.append(inp);
+  return cell;
+}
+
+/**
+ * Position cell: the shade's last estimated position as percent closed (0 = open,
+ * 100 = closed), read-only. It reflects the firmware's persisted estimate at the
+ * last `list`, so it updates on refresh, not live during a move.
+ */
+function posTd(s) {
+  const cell = document.createElement("td");
+  cell.className = "muted";
+  cell.textContent = `${Math.round((s.pos || 0) / 100)}%`;
   return cell;
 }
 
@@ -788,8 +804,8 @@ async function importBackup(file) {
     if (!m) continue;
     const idx = m[1];
     if (s.link && s.link !== "000000") await send(`link ${idx} ${s.link}`);
-    if (s.up_ms || s.down_ms || s.invert || (s.my !== undefined && s.my !== 255))
-      await send(`pos ${idx} ${s.up_ms || 0} ${s.down_ms || 0} ${s.my ?? 255} ${s.invert ? 1 : 0}`);
+    if (s.up_ms || s.down_ms || s.invert || s.up_lag || s.down_lag || (s.my !== undefined && s.my !== 255))
+      await send(`pos ${idx} ${s.up_ms || 0} ${s.down_ms || 0} ${s.my ?? 255} ${s.invert ? 1 : 0} ${s.up_lag || 0} ${s.down_lag || 0}`);
     if (s.on === false) await send(`on ${idx} 0`);
   }
   await refresh();

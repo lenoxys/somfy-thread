@@ -27,7 +27,13 @@ extern "C" {
  * ("my") position as a 0..100 percent-closed value, or SHADE_MY_UNSET when
  * unknown; it is set physically by holding the remote's My button and cannot be
  * read over RF, so this is only our copy of it. `invert` flips open/close for
- * reversed installs.
+ * reversed installs. `up_lag_ms`/`down_lag_ms` are the per-direction startup
+ * dead-times (how long after the command the shade stays still before it visibly
+ * moves — pronounced lifting against gravity, near-zero dropping); they add a
+ * fixed offset before the timed ramp so partial moves and mid-travel stops track.
+ * `pos` is the last settled position estimate (Percent100ths, 0 = open) persisted
+ * so it survives a reboot — stale if a wall remote moved the shade while powered
+ * off, re-zeroed by the next full open/close.
  */
 typedef struct {
     uint32_t addr;
@@ -40,6 +46,9 @@ typedef struct {
     uint16_t down_ms;
     uint8_t  my_pct;
     bool     invert;
+    uint16_t up_lag_ms;
+    uint16_t down_lag_ms;
+    uint16_t pos;
 } shade_t;
 
 #define SHADE_MY_UNSET 0xFF

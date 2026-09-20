@@ -105,6 +105,9 @@ int blind_store_add(uint32_t addr, uint16_t rolling, const char *name)
         s->down_ms = 0;
         s->my_pct  = SHADE_MY_UNSET;
         s->invert  = false;
+        s->up_lag_ms   = 0;
+        s->down_lag_ms = 0;
+        s->pos     = 0;
         s->name[0] = 0;
         if (name) strncat(s->name, name, sizeof(s->name) - 1);
         blind_store_save();
