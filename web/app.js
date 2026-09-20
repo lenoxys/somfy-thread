@@ -107,6 +107,9 @@ function populateReleaseSelect() {
 
 let port = null;
 let writer = null;
+let reader = null;
+let pipeAbort = null;
+let pipeDone = null;
 let connected = false;
 const pending = [];
 
@@ -129,12 +132,14 @@ function dispatch(line) {
  */
 async function readLoop() {
   const dec = new TextDecoderStream();
-  port.readable.pipeTo(dec.writable).catch(() => {});
-  const reader = dec.readable.getReader();
+  pipeAbort = new AbortController();
+  pipeDone = port.readable.pipeTo(dec.writable, { signal: pipeAbort.signal }).catch(() => {});
+  const r = dec.readable.getReader();
+  reader = r;
   let buf = "";
   try {
     for (;;) {
-      const { value, done } = await reader.read();
+      const { value, done } = await r.read();
       if (done) break;
       buf += value;
       let nl;
@@ -998,7 +1003,7 @@ function onDisconnect() {
   stopMatterPoll();
   try { if (writer) writer.releaseLock(); } catch (e) { /* already released */ }
   try { if (port) port.close(); } catch (e) { /* already closing */ }
-  writer = null; port = null;
+  reader = null; pipeAbort = null; pipeDone = null; writer = null; port = null;
   $("dot").classList.remove("on");
   $("statusText").textContent = t("status.disconnected");
   $("connect").disabled = false;
@@ -1011,12 +1016,20 @@ function onDisconnect() {
 
 /**
  * Release the serial port so ESP Web Tools can claim it for flashing, and reset
- * the connection UI. readLoop's pending pipeTo settles via its own catch.
+ * the connection UI. The read loop pipes port.readable into a decoder, which
+ * *locks* port.readable — so port.close() would reject while that pipe is live.
+ * Cancel the reader and abort the pipe first (unlocking port.readable), then
+ * close; otherwise the port stays open and ESP Web Tools hits "Port is already
+ * open" when it reopens the same device.
  */
 async function releasePort() {
+  connected = false;
+  try { if (reader) await reader.cancel(); } catch (e) { /* already gone */ }
+  try { if (pipeAbort) pipeAbort.abort(); } catch (e) { /* already aborted */ }
+  try { if (pipeDone) await pipeDone; } catch (e) { /* settled via its own catch */ }
   try { if (writer) writer.releaseLock(); } catch (e) { /* already released */ }
   try { if (port) await port.close(); } catch (e) { /* already closing */ }
-  writer = null; port = null; connected = false;
+  reader = null; pipeAbort = null; pipeDone = null; writer = null; port = null;
   $("dot").classList.remove("on");
   $("statusText").textContent = t("status.disconnected");
   $("connect").disabled = false;
