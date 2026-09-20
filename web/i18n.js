@@ -6,8 +6,14 @@
 // English is the fallback.
 
 import en from "./lang/en.js";
+import fr from "./lang/fr.js";
+import de from "./lang/de.js";
+import es from "./lang/es.js";
+import pt from "./lang/pt.js";
+import ja from "./lang/ja.js";
+import zh from "./lang/zh.js";
 
-const MESSAGES = { en };
+const MESSAGES = { en, fr, de, es, pt, ja, zh };
 const STORE_KEY = "lang";
 
 /** Pick the UI language: a stored choice, else the browser's, falling back to English. */
