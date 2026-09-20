@@ -6,15 +6,27 @@ Firmware is **generic**: it exposes eight WindowCovering endpoints, each mapped 
 
 ## Hardware
 
-Waveshare ESP32-C6-Zero (native USB-C) wired to an E07-M1101D:
+Waveshare ESP32-C6-Zero (native USB-C) wired to an E07-M1101D (CC1101). The E07 runs at **3.3 V — never 5 V**.
 
-| CC1101 (E07) | ESP32-C6 GPIO |
-|--------------|---------------|
-| SCK          | 19            |
-| MISO         | 20            |
-| MOSI         | 18            |
-| CSN          | 21            |
-| GDO0         | 22            |
+The E07 pins are a 2×4 header (odd pins on the bottom row, even on the top):
+
+```
+top row     2 VCC     4 CSN     6 MOSI    8 GDO2
+bottom row  1 GND     3 GDO0    5 SCK     7 MISO/GDO1
+```
+
+| E07 row | E07 pin        | Signal          | ESP32-C6-Zero |
+|---------|----------------|-----------------|---------------|
+| bottom  | 1 · GND        | Ground          | GND           |
+| bottom  | 3 · GDO0       | TX data out     | GP22          |
+| bottom  | 5 · SCK        | SPI clock       | GP19          |
+| bottom  | 7 · MISO/GDO1  | SPI data out    | GP20          |
+| top     | 2 · VCC        | 3.3 V power     | 3V3(OUT)      |
+| top     | 4 · CSN        | SPI chip select | GP21          |
+| top     | 6 · MOSI       | SPI data in     | GP18          |
+| top     | 8 · GDO2       | RX data out     | GP23          |
+
+Both GDO lines are wired: **GDO0 (GP22) transmits** and **GDO2 (GP23) receives** — receive is what lets the board hear your existing remotes for discovery and keep rolling codes in sync. Attach a 433 MHz antenna to the E07. On the ESP32-C6-Zero, `GP18`–`GP22` sit together on the top-right header while `GP23` and power are on the opposite edge, so the wires don't split cleanly by E07 row. The remaining GPIOs are avoided on purpose (GP12/13 native USB, GP8/9/15 strapping/flash, GP4/5 JTAG, GP14 on-board RF antenna switch).
 
 Default carrier 433.42 MHz; the frequency is a single device-wide radio setting, tunable (a real crystal drifts — sweep 433.36–433.44 if a motor stays silent).
 

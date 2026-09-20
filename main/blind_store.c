@@ -16,28 +16,21 @@ static shade_t s_shades[BLIND_MAX_COUNT];
 static float   s_freq_mhz = BOARD_DEFAULT_FREQ_MHZ;
 
 /**
- * Populate the table with factory defaults: a per-device 24-bit address base
- * derived from the low three eFuse-MAC bytes (unique and stable), rolling code
- * 1, active, and name "Shade N". The user PROGs their motors onto these
- * addresses, then may override them via the console.
+ * Count the slots in use (addr != 0), for logging only.
  */
-static void seed_defaults(void)
+static int used_count(void)
 {
-    uint8_t mac[6] = {0};
-    esp_efuse_mac_get_default(mac);
-    uint32_t base = ((uint32_t)mac[3] << 16 | (uint32_t)mac[4] << 8 | mac[5]) & 0xFFFFFF;
-    for (int i = 0; i < BLIND_MAX_COUNT; i++) {
-        s_shades[i].addr     = (base + i) & 0xFFFFFF;
-        s_shades[i].rolling  = 1;
-        s_shades[i].active   = true;
-        snprintf(s_shades[i].name, sizeof(s_shades[i].name), "Shade %d", i + 1);
-    }
+    int n = 0;
+    for (int i = 0; i < BLIND_MAX_COUNT; i++)
+        if (s_shades[i].addr) n++;
+    return n;
 }
 
 /**
- * Initialise NVS and load the shade table. Erases and reinitialises NVS if it
- * reports no free pages or a version mismatch. Seeds and persists defaults when
- * no valid blob of the expected size is found.
+ * Initialise NVS and load the slot table. Erases and reinitialises NVS if it
+ * reports no free pages or a version mismatch. Starts empty (all slots zeroed)
+ * whenever no blob of the current layout is found — including after a firmware
+ * upgrade that changed the shade struct, since the blob size then differs.
  */
 void blind_store_init(void)
 {
@@ -54,16 +47,65 @@ void blind_store_init(void)
         nvs_get_blob(h, NVS_FREQ, &s_freq_mhz, &flen);
         nvs_close(h);
         if (e == ESP_OK && len == sizeof(s_shades)) {
-            ESP_LOGI(TAG, "loaded %d shades from NVS (freq %.3f MHz)", BLIND_MAX_COUNT, s_freq_mhz);
+            ESP_LOGI(TAG, "loaded %d shades from NVS (freq %.3f MHz)", used_count(), s_freq_mhz);
             return;
         }
     }
-    ESP_LOGI(TAG, "no valid store — seeding defaults");
-    seed_defaults();
+    ESP_LOGI(TAG, "no valid store — starting empty");
+    memset(s_shades, 0, sizeof(s_shades));
     blind_store_save();
 }
 
 int blind_store_count(void) { return BLIND_MAX_COUNT; }
+
+bool blind_store_used(int idx)
+{
+    return idx >= 0 && idx < BLIND_MAX_COUNT && s_shades[idx].addr != 0;
+}
+
+int blind_store_add(uint32_t addr, uint16_t rolling, const char *name)
+{
+    for (int i = 0; i < BLIND_MAX_COUNT; i++) {
+        if (s_shades[i].addr) continue;
+        shade_t *s = &s_shades[i];
+        s->addr    = addr & 0xFFFFFF;
+        s->rolling = rolling;
+        s->ep_id   = 0;
+        s->enabled = true;
+        s->name[0] = 0;
+        if (name) strncat(s->name, name, sizeof(s->name) - 1);
+        blind_store_save();
+        return i;
+    }
+    return -1;
+}
+
+void blind_store_remove(int idx)
+{
+    if (idx < 0 || idx >= BLIND_MAX_COUNT) return;
+    memset(&s_shades[idx], 0, sizeof(s_shades[idx]));
+    blind_store_save();
+}
+
+/**
+ * Derive a 24-bit base from the low three eFuse-MAC bytes (unique and stable)
+ * and return the first base+offset not already used by any slot.
+ */
+uint32_t blind_store_gen_addr(void)
+{
+    uint8_t mac[6] = {0};
+    esp_efuse_mac_get_default(mac);
+    uint32_t base = ((uint32_t)mac[3] << 16 | (uint32_t)mac[4] << 8 | mac[5]) & 0xFFFFFF;
+    for (uint32_t off = 0; off < 0x10000; off++) {
+        uint32_t cand = (base + off) & 0xFFFFFF;
+        if (!cand) continue;
+        bool taken = false;
+        for (int i = 0; i < BLIND_MAX_COUNT; i++)
+            if (s_shades[i].addr == cand) { taken = true; break; }
+        if (!taken) return cand;
+    }
+    return base ? base : 1;
+}
 
 shade_t *blind_store_get(int idx)
 {

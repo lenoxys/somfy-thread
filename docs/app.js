@@ -117,23 +117,32 @@ function dispatch(line) {
   }
 }
 
-/** Continuously read the port, split into lines, log and dispatch them. */
+/**
+ * Continuously read the port, split into lines, log and dispatch them. Returns
+ * (or throws) when the stream closes — a closed reader means the board is gone
+ * (USB unplug or a dead port), so we flip the UI to disconnected.
+ */
 async function readLoop() {
   const dec = new TextDecoderStream();
   port.readable.pipeTo(dec.writable).catch(() => {});
   const reader = dec.readable.getReader();
   let buf = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += value;
-    let nl;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).replace(/\r$/, "").trim();
-      buf = buf.slice(nl + 1);
-      if (line) { log(line); dispatch(line); }
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).replace(/\r$/, "").trim();
+        buf = buf.slice(nl + 1);
+        if (line) { log(line); dispatch(line); }
+      }
     }
+  } catch (e) {
+    /* stream errored — handled as a disconnect below */
   }
+  if (connected) onDisconnect();
 }
 
 /** Send a command line to the device. */
@@ -280,19 +289,45 @@ async function refresh() {
 /** Fire-and-forget a setter command (device replies OK/ERR to the log). */
 function save(cmd) { send(cmd).catch((e) => log("ERR " + e.message)); }
 
-/** Shades step: editable table of every shade. */
+/**
+ * Run a mutating command (add/remove) and reload the list, since it changes the
+ * set of slots. Errors go to the log.
+ */
+function mutate(cmd) {
+  send(cmd).then(() => refresh()).catch((e) => log("ERR " + e.message));
+}
+
+/**
+ * Shades step: the primary list of configured shades. One row per shade with an
+ * editable name, an On switch (exposure over Thread), motor controls, and a
+ * Remove button. Rows switched off are greyed. Address and rolling code are not
+ * shown here — they live in the Advanced (backup/restore) table below.
+ */
 function renderManage() {
   const tb = $("manageBody");
+  const adv = $("advBody");
   tb.textContent = "";
+  adv.textContent = "";
+  $("shadeTable").hidden = shades.length === 0;
+  $("shadeEmpty").hidden = shades.length !== 0;
   for (const s of shades) {
     const tr = document.createElement("tr");
-    tr.append(td(String(s.idx)));
+    tr.classList.toggle("disabled", !s.on);
     tr.append(inputTd("name", s.name, (v) => save(`name ${s.idx} ${v}`)));
-    tr.append(inputTd("num", s.addr, (v) => save(`addr ${s.idx} ${v}`)));
-    tr.append(inputTd("num", String(s.rolling), (v) => save(`roll ${s.idx} ${v}`)));
-    tr.append(checkTd(s.active, (on) => save(`active ${s.idx} ${on ? 1 : 0}`)));
+    tr.append(switchTd(s.on, (on) => save(`on ${s.idx} ${on ? 1 : 0}`)));
     tr.append(motorTd(s.idx));
+    const rm = document.createElement("td");
+    rm.append(mkBtn(t("shades.remove"), () => {
+      if (confirm(t("confirm.remove", { name: s.name || s.idx }))) mutate(`remove ${s.idx}`);
+    }, "danger small"));
+    tr.append(rm);
     tb.append(tr);
+
+    const ar = document.createElement("tr");
+    ar.append(td(s.name || String(s.idx)));
+    ar.append(inputTd("num", s.addr, (v) => save(`addr ${s.idx} ${v}`)));
+    ar.append(inputTd("num", String(s.rolling), (v) => save(`roll ${s.idx} ${v}`)));
+    adv.append(ar);
   }
 }
 
@@ -323,13 +358,19 @@ function inputTd(cls, val, onCommit) {
   return cell;
 }
 
-function checkTd(on, onToggle) {
+/** Cell holding a labelled toggle switch (a styled checkbox) for the On state. */
+function switchTd(on, onToggle) {
   const cell = document.createElement("td");
+  const lab = document.createElement("label");
+  lab.className = "switch";
   const inp = document.createElement("input");
   inp.type = "checkbox";
   inp.checked = on;
   inp.addEventListener("change", () => onToggle(inp.checked));
-  cell.append(inp);
+  const slider = document.createElement("span");
+  slider.className = "slider";
+  lab.append(inp, slider);
+  cell.append(lab);
   return cell;
 }
 
@@ -339,6 +380,84 @@ function mkBtn(label, onClick, cls = "") {
   b.textContent = label;
   b.addEventListener("click", onClick);
   return b;
+}
+
+/* ── discovery ────────────────────────────────────────────────────────── */
+
+let discovering = false;
+const seen = new Set();
+
+/** @return the set of shade addresses already configured, upper-case hex. */
+function knownAddrs() {
+  return new Set(shades.map((s) => String(s.addr).toUpperCase()));
+}
+
+/**
+ * Discovery mode: listen for Somfy remote frames and offer each newly heard
+ * address as a shade to name and add. Loops on unsolicited [RX] lines until the
+ * user clicks Done — the guided way to onboard a whole fleet from its remotes,
+ * no motor re-pairing needed.
+ */
+async function startDiscover() {
+  if (discovering) return;
+  discovering = true;
+  seen.clear();
+  $("discoverCards").textContent = "";
+  $("discoverPanel").hidden = false;
+  const known = knownAddrs();
+  while (discovering) {
+    let line;
+    try {
+      line = await waitFor((l) => l.includes("[RX] addr="), 60000);
+    } catch (e) {
+      continue;
+    }
+    const ma = line.match(/addr=0x([0-9A-Fa-f]+)/);
+    const mc = line.match(/code=(\d+)/);
+    if (!ma) continue;
+    const addr = ma[1].toUpperCase().padStart(6, "0");
+    if (known.has(addr) || seen.has(addr)) continue;
+    seen.add(addr);
+    addDiscoverCard(addr, mc ? Number(mc[1]) : 0);
+  }
+}
+
+/** Stop the discovery loop and hide its panel. */
+function stopDiscover() {
+  discovering = false;
+  $("discoverPanel").hidden = true;
+}
+
+/**
+ * Show a card for a newly heard remote: its address, a name field, and
+ * Add/Ignore. Add registers the shade seeding rolling from the heard code + 1
+ * so our first transmit is not stale-rejected.
+ */
+function addDiscoverCard(addr, code) {
+  const card = document.createElement("div");
+  card.className = "dcard";
+  const title = document.createElement("div");
+  title.className = "dcard-addr";
+  title.textContent = t("shades.heardAddr", { addr });
+  const name = document.createElement("input");
+  name.type = "text";
+  name.className = "name";
+  name.placeholder = t("shades.namePlaceholder");
+  const add = mkBtn(t("shades.addHeard"), () => {
+    mutate(`add ${addr} ${code + 1} ${name.value.trim()}`);
+    card.remove();
+  }, "primary small");
+  const ignore = mkBtn(t("shades.ignore"), () => card.remove(), "small");
+  const row = document.createElement("div");
+  row.className = "bar";
+  row.append(name, add, ignore);
+  card.append(title, row);
+  $("discoverCards").append(card);
+}
+
+/** Add a motor without a remote: the firmware invents an address; then PROG it. */
+function addMotor() {
+  mutate(`add`);
 }
 
 /* ── actions ──────────────────────────────────────────────────────────── */
@@ -354,7 +473,31 @@ async function connect() {
   $("dot").classList.add("on");
   $("statusText").textContent = t("status.connected");
   $("connect").disabled = true;
+  $("disconnBanner").hidden = true;
   await detect();
+}
+
+/**
+ * Handle an unexpected loss of the board (USB unplug, or a serial port that
+ * died). Tears down the connection, stops any listening loop, flips the UI to
+ * disconnected, and shows a reconnect banner. Idempotent: a no-op once already
+ * disconnected, so the serial event and the read-loop end don't double-fire.
+ */
+function onDisconnect() {
+  if (!connected) return;
+  connected = false;
+  discovering = false;
+  scanning = false;
+  try { if (writer) writer.releaseLock(); } catch (e) { /* already released */ }
+  try { if (port) port.close(); } catch (e) { /* already closing */ }
+  writer = null; port = null;
+  $("dot").classList.remove("on");
+  $("statusText").textContent = t("status.disconnected");
+  $("connect").disabled = false;
+  $("connect").textContent = t("board.recheck");
+  $("discoverPanel").hidden = true;
+  $("disconnBanner").hidden = false;
+  gateNext();
 }
 
 /**
@@ -398,7 +541,7 @@ async function detect() {
   // check — that step only exists to get a noob's radio working the first time.
   try {
     const st = JSON.parse(await request("radio", (l) => l.startsWith("{")));
-    skipRadio = !!st.rf && shades.some((s) => s.active);
+    skipRadio = !!st.rf && shades.some((s) => s.on);
   } catch (e) { /* leave the radio step in place */ }
   const norm = (s) => (s || "").replace(/^v/, "");
   const latest = releases[0] ? releases[0].tag_name : null;
@@ -430,16 +573,22 @@ async function exportBackup() {
   URL.revokeObjectURL(a.href);
 }
 
-/** Replay a backup file: global radio freq, then name/addr/roll/active per shade. */
+/**
+ * Restore a backup onto a fresh (or factory-reset) device: set the global radio
+ * frequency, then re-create each shade with `add` (address + rolling + name).
+ * Shades come back exposed; any that were off in the backup are switched off
+ * afterwards. Identity is by radio address, so the re-assigned slot index does
+ * not matter.
+ */
 async function importBackup(file) {
   const data = JSON.parse(await file.text());
   const list = Array.isArray(data) ? data : data.shades;
   if (data.freq) await send(`freq ${Number(data.freq).toFixed(3)}`);
   for (const s of list) {
-    await send(`name ${s.idx} ${s.name}`);
-    await send(`addr ${s.idx} ${s.addr}`);
-    await send(`roll ${s.idx} ${s.rolling}`);
-    await send(`active ${s.idx} ${s.active ? 1 : 0}`);
+    const line = await request(`add ${s.addr} ${s.rolling} ${s.name}`,
+                               (l) => l.startsWith("OK") || l.startsWith("ERR"), 5000);
+    const m = line.match(/^OK (\d+)/);
+    if (m && s.on === false) await send(`on ${m[1]} 0`);
   }
   await refresh();
 }
@@ -470,6 +619,12 @@ async function getPairing() {
 $("ack").addEventListener("change", (e) => { $("connect").disabled = !e.target.checked; });
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 $("refresh").addEventListener("click", () => refresh().catch((e) => log("ERR " + e.message)));
+$("discover").addEventListener("click", () => startDiscover().catch((e) => log("ERR " + e.message)));
+$("discoverDone").addEventListener("click", () => stopDiscover());
+$("addMotor").addEventListener("click", () => addMotor());
+$("reconnect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
+if ("serial" in navigator)
+  navigator.serial.addEventListener("disconnect", (e) => { if (e.target === port) onDisconnect(); });
 $("refreshReleases").title = t("flasher.refresh");
 $("refreshReleases").setAttribute("aria-label", t("flasher.refresh"));
 $("refreshReleases").addEventListener("click", () =>
@@ -491,11 +646,15 @@ $("resetBtn").addEventListener("click", () => {
 
 const iconCache = {};
 
-/** Fetch icons/<name>.svg once (cached) so inlined SVG inherits currentColor. */
+/**
+ * Fetch icons/<name>.svg once (cached), rewriting any hard-coded hex fill to
+ * currentColor so the glyph follows the theme's text color (black/white) rather
+ * than the color it was exported with.
+ */
 async function icon(name) {
   if (!(name in iconCache)) {
     const r = await fetch(`./icons/${name}.svg`);
-    iconCache[name] = r.ok ? await r.text() : "";
+    iconCache[name] = r.ok ? (await r.text()).replace(/fill="#[0-9A-Fa-f]{3,8}"/g, 'fill="currentColor"') : "";
   }
   return iconCache[name];
 }

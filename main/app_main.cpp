@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Unlicense
 // Somfy RTS -> Matter-over-Thread bridge for ESP32-C6 + CC1101.
-// Exposes BLIND_MAX_COUNT WindowCovering (lift-only) endpoints; each maps to a
-// Somfy RTS remote address. Config/backup is done over the USB serial console
-// (the contract driven by the WebSerial page). No on-device web server.
+// Exposes one lift-only WindowCovering endpoint per shade, created on demand as
+// shades are added (up to BLIND_MAX_COUNT). Each shade owns a persisted Matter
+// endpoint id resumed on every boot, so its identity is stable across reboots
+// and across removal of other shades. Config/backup is done over the USB serial
+// console (the contract driven by the WebSerial page). No on-device web server.
 #include <string.h>
 #include <stdlib.h>
 
@@ -54,7 +56,9 @@ static bool       s_rf_ok = false;
 
 typedef struct { int idx; uint8_t cmd; } rf_job_t;
 static QueueHandle_t s_rf_q;
-static uint16_t s_wc_ep_ids[BLIND_MAX_COUNT];
+static node_t     *s_node;
+static uint16_t    s_wc_ep_ids[BLIND_MAX_COUNT];
+static endpoint_t *s_wc_eps[BLIND_MAX_COUNT];
 static volatile int64_t s_last_tx_us = 0;
 
 /**
@@ -160,6 +164,101 @@ public:
 };
 static SomfyWCDelegate s_wc_delegates[BLIND_MAX_COUNT];
 
+/**
+ * Attach the lift-only WindowCovering device type (Identify/Groups/Scenes/WC
+ * plus the lift + position-aware-lift features) to a bare endpoint, binding
+ * shade `idx`'s delegate. Mirrors the feature set the firmware has always used.
+ */
+static void wc_add_clusters(endpoint_t *ep, int idx)
+{
+    window_covering_device::config_t wc;
+    wc.window_covering.type = 0x00;
+    wc.window_covering.delegate = &s_wc_delegates[idx];
+    window_covering_device::add(ep, &wc);
+
+    cluster_t *wc_cluster = cluster::get(ep, WC::Id);
+    cluster::window_covering::feature::lift::config_t lift_cfg;
+    cluster::window_covering::feature::lift::add(wc_cluster, &lift_cfg);
+    cluster::window_covering::feature::position_aware_lift::config_t pal_cfg;
+    pal_cfg.current_position_lift_percent_100ths = nullable<uint16_t>(0);
+    pal_cfg.target_position_lift_percent_100ths = nullable<uint16_t>(0);
+    cluster::window_covering::feature::position_aware_lift::add(wc_cluster, &pal_cfg);
+}
+
+/**
+ * Bring shade `idx`'s Matter endpoint online: resume its persisted endpoint id
+ * if it has one (stable identity across reboots and removals), otherwise create
+ * a fresh id and persist it. Records the endpoint pointer/id, binds the
+ * delegate, and enables it so the controller sees the new cover. Caller must
+ * hold the CHIP stack lock. Does NOT persist the store — caller decides when.
+ * @return true on success.
+ */
+static bool wc_endpoint_up(int idx)
+{
+    shade_t *s = blind_store_get(idx);
+    if (!s) return false;
+    endpoint_t *ep = s->ep_id
+        ? endpoint::resume(s_node, ENDPOINT_FLAG_DESTROYABLE, s->ep_id, NULL)
+        : endpoint::create(s_node, ENDPOINT_FLAG_DESTROYABLE, NULL);
+    if (!ep) return false;
+    wc_add_clusters(ep, idx);
+    uint16_t id = endpoint::get_id(ep);
+    s->ep_id          = id;
+    s_wc_eps[idx]     = ep;
+    s_wc_ep_ids[idx]  = id;
+    s_wc_delegates[idx].SetEndpoint(id);
+    return endpoint::enable(ep) == ESP_OK;
+}
+
+/**
+ * Take shade `idx`'s endpoint off Thread by destroying it. The persisted
+ * `ep_id` is kept in the store so a later re-enable resumes the same identity.
+ * Caller must hold the CHIP stack lock.
+ */
+static void wc_endpoint_down(int idx)
+{
+    if (!s_wc_eps[idx]) return;
+    endpoint::destroy(s_node, s_wc_eps[idx]);
+    s_wc_eps[idx]    = NULL;
+    s_wc_ep_ids[idx] = 0;
+}
+
+/**
+ * Take the CHIP stack lock and run wc_endpoint_up / _down. Endpoint lifecycle
+ * ops must not race the Matter thread, and the console runs off it.
+ */
+static bool locked_endpoint_up(int idx)
+{
+    if (esp_matter::lock::chip_stack_lock(portMAX_DELAY) != esp_matter::lock::SUCCESS) return false;
+    bool ok = wc_endpoint_up(idx);
+    esp_matter::lock::chip_stack_unlock();
+    return ok;
+}
+static void locked_endpoint_down(int idx)
+{
+    if (esp_matter::lock::chip_stack_lock(portMAX_DELAY) != esp_matter::lock::SUCCESS) return;
+    wc_endpoint_down(idx);
+    esp_matter::lock::chip_stack_unlock();
+}
+
+/**
+ * After esp_matter::start(), resume+enable an endpoint for every used, enabled
+ * shade so covers reappear with their stable ids. Persists once at the end in
+ * case any shade had no id yet (first-ever expose).
+ */
+static void restore_endpoints(void)
+{
+    int n = 0;
+    for (int i = 0; i < BLIND_MAX_COUNT; i++) {
+        shade_t *s = blind_store_get(i);
+        if (!s->addr || !s->enabled) continue;
+        if (locked_endpoint_up(i)) n++;
+        else ESP_LOGW(TAG, "shade %d endpoint restore failed", i);
+    }
+    blind_store_save();
+    ESP_LOGI(TAG, "restored %d shade endpoint(s)", n);
+}
+
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
 {
     if (event->Type == chip::DeviceLayer::DeviceEventType::kCommissioningComplete)
@@ -257,11 +356,14 @@ static uint8_t parse_cmd(const char *s)
 static void print_shades_json(void)
 {
     printf("[");
+    bool first = true;
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
+        if (!blind_store_used(i)) continue;
         shade_t *s = blind_store_get(i);
-        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"active\":%s}",
-               i ? "," : "", i, s->name, (unsigned long)s->addr, s->rolling,
-               s->active ? "true" : "false");
+        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s}",
+               first ? "" : ",", i, s->name, (unsigned long)s->addr, s->rolling,
+               s->enabled ? "true" : "false");
+        first = false;
     }
     printf("]\n");
 }
@@ -273,7 +375,7 @@ static int cmd_tx(int argc, char **argv)
     if (argc < 3) { printf("ERR usage: tx <idx> <up|down|my|stop|prog>\n"); return 1; }
     int idx = atoi(argv[1]);
     uint8_t cmd = parse_cmd(argv[2]);
-    if (!blind_store_get(idx) || !cmd) { printf("ERR bad idx/cmd\n"); return 1; }
+    if (!blind_store_used(idx) || !cmd) { printf("ERR bad idx/cmd\n"); return 1; }
     app_rf_submit(idx, cmd);
     printf("OK\n");
     return 0;
@@ -286,8 +388,9 @@ static int cmd_tx(int argc, char **argv)
 static int cmd_name(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: name <idx> <text>\n"); return 1; }
-    shade_t *s = blind_store_get(atoi(argv[1]));
-    if (!s) { printf("ERR bad idx\n"); return 1; }
+    int idx = atoi(argv[1]);
+    shade_t *s = blind_store_get(idx);
+    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
     s->name[0] = 0;
     for (int i = 2; i < argc; i++) {
         if (i > 2) strncat(s->name, " ", sizeof(s->name) - strlen(s->name) - 1);
@@ -319,8 +422,9 @@ static int cmd_freq(int argc, char **argv)
 static int cmd_addr(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: addr <idx> <hex24>\n"); return 1; }
-    shade_t *s = blind_store_get(atoi(argv[1]));
-    if (!s) { printf("ERR bad idx\n"); return 1; }
+    int idx = atoi(argv[1]);
+    shade_t *s = blind_store_get(idx);
+    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
     s->addr = (uint32_t)strtoul(argv[2], NULL, 16) & 0xFFFFFF;
     blind_store_save();
     printf("OK\n");
@@ -330,20 +434,70 @@ static int cmd_addr(int argc, char **argv)
 static int cmd_roll(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: roll <idx> <value>\n"); return 1; }
-    shade_t *s = blind_store_get(atoi(argv[1]));
-    if (!s) { printf("ERR bad idx\n"); return 1; }
+    int idx = atoi(argv[1]);
+    shade_t *s = blind_store_get(idx);
+    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
     s->rolling = (uint16_t)strtoul(argv[2], NULL, 10);
     blind_store_save();
     printf("OK\n");
     return 0;
 }
 
-static int cmd_active(int argc, char **argv)
+/**
+ * `add [hexaddr] [rolling] [name...]` — register a shade in the first free slot
+ * and bring its Matter endpoint online. With no address the firmware invents a
+ * MAC-derived one (the PROG "add a motor without a remote" path); rolling
+ * defaults to 1. Prints `OK <idx>` or an error, and rolls the slot back if the
+ * endpoint could not be created.
+ */
+static int cmd_add(int argc, char **argv)
 {
-    if (argc < 3) { printf("ERR usage: active <idx> <0|1>\n"); return 1; }
-    shade_t *s = blind_store_get(atoi(argv[1]));
-    if (!s) { printf("ERR bad idx\n"); return 1; }
-    s->active = atoi(argv[2]) != 0;
+    uint32_t addr    = (argc >= 2) ? (uint32_t)strtoul(argv[1], NULL, 16) & 0xFFFFFF
+                                   : blind_store_gen_addr();
+    uint16_t rolling = (argc >= 3) ? (uint16_t)strtoul(argv[2], NULL, 10) : 1;
+    char name[16] = {0};
+    for (int i = 3; i < argc; i++) {
+        if (i > 3) strncat(name, " ", sizeof(name) - strlen(name) - 1);
+        strncat(name, argv[i], sizeof(name) - strlen(name) - 1);
+    }
+    int idx = blind_store_add(addr, rolling, name[0] ? name : NULL);
+    if (idx < 0) { printf("ERR full\n"); return 1; }
+    if (!locked_endpoint_up(idx)) { blind_store_remove(idx); printf("ERR endpoint\n"); return 1; }
+    blind_store_save();
+    printf("OK %d\n", idx);
+    return 0;
+}
+
+/**
+ * `remove <idx>` — take the shade's endpoint off Thread and free its slot.
+ */
+static int cmd_remove(int argc, char **argv)
+{
+    if (argc < 2) { printf("ERR usage: remove <idx>\n"); return 1; }
+    int idx = atoi(argv[1]);
+    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    locked_endpoint_down(idx);
+    blind_store_remove(idx);
+    printf("OK\n");
+    return 0;
+}
+
+/**
+ * `on <idx> <0|1>` — the exposure switch. 1 resumes the shade's endpoint on
+ * Thread (same stable id); 0 destroys it, keeping the persisted id for a later
+ * re-enable. No-op if already in the requested state.
+ */
+static int cmd_on(int argc, char **argv)
+{
+    if (argc < 3) { printf("ERR usage: on <idx> <0|1>\n"); return 1; }
+    int idx = atoi(argv[1]);
+    shade_t *s = blind_store_get(idx);
+    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    bool on = atoi(argv[2]) != 0;
+    if (on == s->enabled) { printf("OK\n"); return 0; }
+    if (on) { if (!locked_endpoint_up(idx)) { printf("ERR endpoint\n"); return 1; } }
+    else    { locked_endpoint_down(idx); }
+    s->enabled = on;
     blind_store_save();
     printf("OK\n");
     return 0;
@@ -376,12 +530,14 @@ static void register_console(void)
         {"version","Print firmware id and version",          NULL, &cmd_version, NULL},
         {"radio",  "Print radio status (rf present, freq) as JSON", NULL, &cmd_radio, NULL},
         {"list",   "List shades as JSON",                    NULL, &cmd_list,   NULL},
+        {"add",    "add [hexaddr] [rolling] [name...] — register a shade", NULL, &cmd_add, NULL},
+        {"remove", "remove <idx> — delete a shade",          NULL, &cmd_remove, NULL},
+        {"on",     "on <idx> <0|1> — expose shade over Thread", NULL, &cmd_on,  NULL},
         {"tx",     "tx <idx> <up|down|my|stop|prog>",        NULL, &cmd_tx,     NULL},
         {"name",   "name <idx> <text>",                      NULL, &cmd_name,   NULL},
         {"freq",   "freq [mhz] — get/set device radio frequency", NULL, &cmd_freq, NULL},
         {"addr",   "addr <idx> <hex24>",                     NULL, &cmd_addr,   NULL},
         {"roll",   "roll <idx> <value>",                     NULL, &cmd_roll,   NULL},
-        {"active", "active <idx> <0|1>",                     NULL, &cmd_active, NULL},
         {"export", "Dump full shade table (backup) as JSON", NULL, &cmd_export, NULL},
         {"qr",     "Print Matter QR payload",                NULL, &cmd_qr,     NULL},
         {"pair",   "Open commissioning window, print code",  NULL, &cmd_pair,   NULL},
@@ -416,17 +572,17 @@ extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
 {
     int idx = -1;
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
-        shade_t *s = blind_store_get(i);
-        if (s && s->active && s->addr == addr) { idx = i; break; }
+        if (blind_store_used(i) && blind_store_get(i)->addr == addr) { idx = i; break; }
     }
     ESP_LOGI(TAG, "[RX] addr=0x%06lX code=%u cmd=0x%X idx=%d",
              (unsigned long)addr, code, cmd, idx);
-    if (idx < 0) return;
+    if (idx < 0) return;  // unknown address — a remote the web discovery step can add
     if (esp_timer_get_time() - s_last_tx_us < WC_RX_ECHO_GUARD_US) return;
 
     shade_t *s = blind_store_get(idx);
     if (code > s->rolling) { s->rolling = code; blind_store_save(); }
 
+    if (!s->enabled || !s_wc_ep_ids[idx]) return;  // not exposed — no endpoint to mirror to
     uint16_t pos;
     if (cmd == SOMFY_UP)        pos = 0;
     else if (cmd == SOMFY_DOWN) pos = 10000;
@@ -436,9 +592,10 @@ extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
 }
 
 /**
- * Bring up storage, RF, the RF worker, the Matter node with one lift-only
- * WindowCovering endpoint per shade, and the serial console; then log the
- * onboarding codes. RF failure is non-fatal — Matter and config still run.
+ * Bring up storage, RF, the RF worker, and the Matter node (no endpoints yet),
+ * start Matter, then restore an endpoint for each exposed shade and start the
+ * serial console; finally log the onboarding codes. RF failure is non-fatal —
+ * Matter and config still run.
  */
 extern "C" void app_main(void)
 {
@@ -454,25 +611,7 @@ extern "C" void app_main(void)
     xTaskCreate(rf_task, "rf", 4096, NULL, 5, NULL);
 
     node::config_t node_config;
-    node_t *node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
-    for (int i = 0; i < BLIND_MAX_COUNT; i++) {
-        window_covering_device::config_t wc;
-        wc.window_covering.type = 0x00;
-        wc.window_covering.delegate = &s_wc_delegates[i];
-        endpoint_t *ep = window_covering_device::create(node, &wc, ENDPOINT_FLAG_NONE, NULL);
-        if (!ep) { ESP_LOGE(TAG, "endpoint %d create failed", i); continue; }
-
-        cluster_t *wc_cluster = cluster::get(ep, WC::Id);
-        cluster::window_covering::feature::lift::config_t lift_cfg;
-        cluster::window_covering::feature::lift::add(wc_cluster, &lift_cfg);
-        cluster::window_covering::feature::position_aware_lift::config_t pal_cfg;
-        pal_cfg.current_position_lift_percent_100ths = nullable<uint16_t>(0);
-        pal_cfg.target_position_lift_percent_100ths = nullable<uint16_t>(0);
-        cluster::window_covering::feature::position_aware_lift::add(wc_cluster, &pal_cfg);
-        uint16_t id = endpoint::get_id(ep);
-        s_wc_ep_ids[i] = id;
-        s_wc_delegates[i].SetEndpoint(id);
-    }
+    s_node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     esp_openthread_platform_config_t ot_config = {
@@ -484,6 +623,8 @@ extern "C" void app_main(void)
 #endif
 
     esp_matter::start(app_event_cb);
+
+    restore_endpoints();
 
     esp_matter::console::init();
     register_console();

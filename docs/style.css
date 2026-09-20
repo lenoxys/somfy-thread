@@ -103,21 +103,19 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 .card h2 { margin: .1rem 0 .5rem; font-size: 1.15rem; }
 .muted { color: var(--muted); font-size: .9rem; }
 
-/* stepper */
-.stepper { list-style: none; display: flex; gap: .25rem; padding: 0; margin: 1.25rem 0;
-  counter-reset: s; }
+/* stepper — a phase icon per step (theme-colored via currentColor) */
+.stepper { list-style: none; display: flex; gap: .25rem; padding: 0; margin: 1.25rem 0; }
 .stepper li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .4rem;
   font-size: .78rem; color: var(--muted); position: relative; text-align: center; }
-.stepper li::before { counter-increment: s; content: counter(s); display: grid; place-items: center;
-  width: 2rem; height: 2rem; border-radius: 999px; background: var(--surface-alt); border: 2px solid var(--line);
-  color: var(--muted); font-weight: 700; }
+.stepico { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px;
+  background: var(--surface-alt); border: 2px solid var(--line); color: var(--muted); }
+.stepico svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
 .stepper li::after { content: ""; position: absolute; top: 1rem; left: -50%; width: 100%;
   height: 2px; background: var(--line); z-index: -1; }
 .stepper li:first-child::after { display: none; }
 .stepper li.active { color: var(--fg); font-weight: 700; }
-.stepper li.active::before { background: var(--navy); border-color: var(--navy); color: #fff; }
-.stepper li.done::before { content: "\2713"; background: var(--yellow); border-color: var(--yellow);
-  color: var(--navy); }
+.stepper li.active .stepico { background: var(--navy); border-color: var(--navy); color: #fff; }
+.stepper li.done .stepico { background: var(--yellow); border-color: var(--yellow); color: var(--navy); }
 .stepper li.done::after, .stepper li.active::after { background: var(--yellow); }
 
 /* buttons */
@@ -141,6 +139,7 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 /* callout */
 .callout { background: var(--callout-bg); border: 1px solid var(--callout-line); border-radius: 8px;
   padding: .75rem .9rem; margin: .75rem 0; font-size: .92rem; }
+.callout.bad { background: color-mix(in srgb, var(--danger) 12%, var(--card)); border-color: var(--danger); }
 .callout .btn { margin: .4rem .4rem 0 0; }
 .ack { display: flex; gap: .5rem; align-items: center; font-size: .92rem; margin: 0 0 .75rem; }
 
@@ -156,6 +155,25 @@ input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--navy
 
 /* per-row motor controls */
 .ctrls { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+
+/* a switched-off shade row is greyed but still readable/editable */
+tr.disabled td { color: var(--muted); }
+tr.disabled .ctrls, tr.disabled input.name { opacity: .5; }
+
+/* On/Thread toggle switch (a styled checkbox) */
+.switch { position: relative; display: inline-block; width: 2.4rem; height: 1.3rem; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch .slider { position: absolute; inset: 0; background: var(--disabled-bg);
+  border: 1px solid var(--line); border-radius: 999px; transition: background .15s; }
+.switch .slider::before { content: ""; position: absolute; width: 1rem; height: 1rem; left: .12rem; top: .12rem;
+  background: #fff; border-radius: 999px; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+.switch input:checked + .slider { background: var(--ok); border-color: var(--ok); }
+.switch input:checked + .slider::before { transform: translateX(1.1rem); }
+
+/* discovery: a card per newly heard remote */
+.dcard { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .75rem; margin: .5rem 0;
+  background: var(--surface-alt); }
+.dcard-addr { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; margin-bottom: .4rem; }
 
 /* pairing code */
 .paircode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.6rem; font-weight: 700;

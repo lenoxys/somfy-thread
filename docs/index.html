@@ -16,12 +16,17 @@
 
 <main>
   <ol class="stepper" id="stepper">
-    <li data-i18n="step.board"></li>
-    <li data-i18n="step.radio"></li>
-    <li data-i18n="step.shades"></li>
-    <li data-i18n="step.matter"></li>
-    <li data-i18n="step.backup"></li>
+    <li><span class="stepico" data-icon="board"></span><span data-i18n="step.board"></span></li>
+    <li><span class="stepico" data-icon="radio"></span><span data-i18n="step.radio"></span></li>
+    <li><span class="stepico" data-icon="shades"></span><span data-i18n="step.shades"></span></li>
+    <li><span class="stepico" data-icon="matter"></span><span data-i18n="step.matter"></span></li>
+    <li><span class="stepico" data-icon="backup"></span><span data-i18n="step.backup"></span></li>
   </ol>
+
+  <div id="disconnBanner" class="callout bad" hidden>
+    <span data-i18n="disconnect.lost"></span>
+    <button id="reconnect" class="btn small" data-i18n="disconnect.reconnect"></button>
+  </div>
 
   <!-- Step 0 — Board: connect, detect firmware, then update / flash / continue -->
   <section class="card step" data-step="0">
@@ -77,11 +82,29 @@
   <section class="card step" data-step="2" hidden>
     <h2 data-i18n="shades.title"></h2>
     <p class="muted" data-i18n="shades.intro"></p>
-    <div class="callout" data-i18n-html="shades.progHelp"></div>
-    <table>
-      <thead><tr><th>#</th><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th><th data-i18n="shades.col.on"></th><th data-i18n="shades.col.motor"></th></tr></thead>
+    <div class="bar">
+      <button id="discover" class="btn primary" data-i18n="shades.discover"></button>
+      <button id="addMotor" class="btn" data-i18n="shades.addMotor"></button>
+    </div>
+    <div id="discoverPanel" class="callout" hidden>
+      <p id="discoverHint" data-i18n="shades.discoverHint"></p>
+      <div id="discoverCards"></div>
+      <div class="bar"><button id="discoverDone" class="btn small" data-i18n="shades.discoverDone"></button></div>
+    </div>
+    <table id="shadeTable" hidden>
+      <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.on"></th><th data-i18n="shades.col.motor"></th><th></th></tr></thead>
       <tbody id="manageBody"></tbody>
     </table>
+    <p id="shadeEmpty" class="muted" data-i18n="shades.empty"></p>
+    <div class="callout" data-i18n-html="shades.progHelp"></div>
+    <details class="adv">
+      <summary data-i18n="shades.advTitle"></summary>
+      <p class="muted" data-i18n="shades.advHelp"></p>
+      <table>
+        <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th></tr></thead>
+        <tbody id="advBody"></tbody>
+      </table>
+    </details>
     <div class="bar"><button id="refresh" class="btn small" data-i18n="shades.reload"></button></div>
   </section>
 
