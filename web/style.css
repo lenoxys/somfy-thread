@@ -250,6 +250,7 @@ tr.disabled .ctrls, tr.disabled input.name { opacity: .5; }
 .paircode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.6rem; font-weight: 700;
   letter-spacing: .08em; background: var(--navy); color: #fff; padding: .6rem .9rem; border-radius: 8px;
   display: inline-block; margin: .5rem 0; }
+.paircode[hidden], .qrimg[hidden] { display: none; }
 .adv { margin-top: 1rem; }
 .adv summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
 .advrow { display: flex; align-items: center; gap: .6rem; margin: .7rem 0 .3rem; }
