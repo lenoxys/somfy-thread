@@ -412,11 +412,16 @@ static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
 /**
  * Bring shade `idx`'s Matter endpoint online: resume its persisted endpoint id
  * if it has one (stable identity across reboots and removals), otherwise create
- * a fresh id and persist it. Records the endpoint pointer/id, binds the
- * delegate, composes it under the Aggregator endpoint (set_parent_endpoint, so
- * the cover appears in the Aggregator's PartsList and a bridge-aware controller
- * groups it as its own device), and enables it so the controller sees the new
- * cover. Caller must hold the CHIP stack lock. Does NOT persist the store —
+ * a fresh id and persist it. Records the endpoint pointer/id, composes it under
+ * the Aggregator endpoint (set_parent_endpoint, so the cover appears in the
+ * Aggregator's PartsList and a bridge-aware controller groups it as its own
+ * device), enables it so the controller sees the new cover, and registers its
+ * WindowCovering delegate with CHIP. The delegate must be registered explicitly
+ * here: esp_matter runs the cluster delegate-init callbacks only once, inside
+ * esp_matter::start(), so an endpoint created dynamically afterward would
+ * otherwise have no delegate and CHIP would silently simulate movement (update
+ * Target/OperationalStatus) instead of calling HandleMovement to drive the Somfy
+ * radio. Caller must hold the CHIP stack lock. Does NOT persist the store —
  * caller decides when.
  * @return true on success.
  */
@@ -446,6 +451,7 @@ static bool wc_endpoint_up(int idx)
     s_wc_delegates[idx].SetEndpoint(id);
     esp_err_t eerr = endpoint::enable(ep);
     if (eerr != ESP_OK) ESP_LOGE(TAG, "shade %d: endpoint enable failed (0x%x)", idx, eerr);
+    WC::SetDefaultDelegate(id, &s_wc_delegates[idx]);
     return eerr == ESP_OK;
 }
 
