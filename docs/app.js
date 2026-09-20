@@ -425,16 +425,17 @@ function stopwatchBtn(onDone) {
 
 /**
  * Name cell: a remote-link indicator followed by the editable name. The badge is
- * lit when the shade was cloned from a physical Somfy remote (`remote` true) and
- * muted when it was added via PROG with no remote.
+ * lit when a physical wall remote is linked to the shade (its presses are mirrored
+ * into the position) and muted when none is.
  */
 function nameTd(s) {
   const cell = document.createElement("td");
   const wrap = document.createElement("div");
   wrap.className = "namecell";
+  const linked = s.link && s.link !== "000000";
   const badge = document.createElement("span");
-  badge.className = "remote-badge" + (s.remote ? " on" : "");
-  badge.title = t(s.remote ? "shades.remoteLinked" : "shades.remoteNone");
+  badge.className = "remote-badge" + (linked ? " on" : "");
+  badge.title = t(linked ? "shades.remoteLinked" : "shades.remoteNone");
   icon("remote").then((svg) => { badge.innerHTML = svg; });
   const inp = document.createElement("input");
   inp.type = "text";
