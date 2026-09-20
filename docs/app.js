@@ -159,11 +159,34 @@ function request(cmd, match, timeout = 3000) {
   });
 }
 
+/** Wait for an unsolicited line matching `match` (no command sent), e.g. an [RX] frame. */
+function waitFor(match, timeout) {
+  return new Promise((resolve, reject) => {
+    const p = { match, resolve };
+    p.timer = setTimeout(() => {
+      const i = pending.indexOf(p);
+      if (i >= 0) pending.splice(i, 1);
+      reject(new Error("timeout"));
+    }, timeout);
+    pending.push(p);
+  });
+}
+
 /* ── wizard navigation ────────────────────────────────────────────────── */
 
-const STEPS = 4;
+const STEPS = 5;
 const CONNECT_STEP = 0;
+const RADIO_STEP = 1;
 let step = 0;
+let radioReady = false;
+let skipRadio = false;
+
+/** Next visible step in direction dir (±1), hopping the radio step once it's been cleared. */
+function stepIn(dir) {
+  let n = step + dir;
+  if (n === RADIO_STEP && skipRadio) n += dir;
+  return n;
+}
 
 /** Show one step, update the stepper, and gate the nav buttons. */
 function setStep(n) {
@@ -177,7 +200,70 @@ function setStep(n) {
   });
   $("back").hidden = step === 0;
   $("next").hidden = step === STEPS - 1;
-  $("next").disabled = step === CONNECT_STEP && !connected;
+  gateNext();
+  if (step === RADIO_STEP) loadRadio().catch((e) => log("ERR " + e.message));
+}
+
+/** Gate the Next button: needs a connection, and a working radio to leave the radio step. */
+function gateNext() {
+  $("next").disabled =
+    (step === CONNECT_STEP && !connected) || (step === RADIO_STEP && !radioReady);
+}
+
+/* ── radio step ───────────────────────────────────────────────────────── */
+
+/**
+ * Query radio status: reflect CC1101 presence + frequency, and set radioReady
+ * so the wizard gates the shade step on a working radio.
+ */
+async function loadRadio() {
+  const line = await request("radio", (l) => l.startsWith("{"));
+  const st = JSON.parse(line);
+  radioReady = !!st.rf;
+  $("radioFreq").value = Number(st.freq).toFixed(3);
+  const el = $("radioStatus");
+  el.textContent = radioReady ? t("radio.ok") : t("radio.absent");
+  el.classList.toggle("bad", !radioReady);
+  gateNext();
+}
+
+// Carrier candidates to sweep, nominal 433.42 first then out to the crystal-drift
+// edges (a real Somfy remote is decoded at whichever step its signal lands in).
+const SCAN_FREQS = [433.42, 433.40, 433.44, 433.38, 433.46, 433.36];
+let scanning = false;
+
+/**
+ * Scan the band while listening: retune the radio to each candidate frequency
+ * and wait for the board to decode a frame ([RX] log line). The first frequency
+ * that hears the remote proves the radio works, is locked in as the carrier,
+ * and reveals the remote's address. Ask the user to hold their remote.
+ */
+async function scanAndListen() {
+  if (scanning) return;
+  scanning = true;
+  const heard = $("radioHeard");
+  heard.hidden = false;
+  heard.classList.remove("bad");
+  try {
+    for (const f of SCAN_FREQS) {
+      const fs = f.toFixed(3);
+      await send(`freq ${fs}`);
+      heard.textContent = t("radio.scanning", { freq: fs });
+      try {
+        const line = await waitFor((l) => l.includes("[RX] addr="), 3000);
+        const m = line.match(/addr=0x([0-9A-Fa-f]+)/);
+        heard.textContent = t("radio.heard", { addr: m ? m[1] : "?", freq: fs });
+        $("radioFreq").value = fs;
+        radioReady = true;
+        gateNext();
+        return;
+      } catch (e) { /* nothing at this step — try the next */ }
+    }
+    heard.classList.add("bad");
+    heard.textContent = t("radio.notHeard");
+  } finally {
+    scanning = false;
+  }
 }
 
 /* ── shade rendering ──────────────────────────────────────────────────── */
@@ -189,8 +275,6 @@ async function refresh() {
   const line = await request("list", (l) => l.startsWith("["));
   shades = JSON.parse(line);
   renderManage();
-  const freq = await request("freq", (l) => /^\d+\.\d+$/.test(l.trim()));
-  $("radioFreq").value = freq.trim();
 }
 
 /** Fire-and-forget a setter command (device replies OK/ERR to the log). */
@@ -310,12 +394,18 @@ async function detect() {
   }
 
   await refresh().catch((e) => log("ERR " + e.message));
+  // An already-set-up board (radio present + a shade configured) skips the radio
+  // check — that step only exists to get a noob's radio working the first time.
+  try {
+    const st = JSON.parse(await request("radio", (l) => l.startsWith("{")));
+    skipRadio = !!st.rf && shades.some((s) => s.active);
+  } catch (e) { /* leave the radio step in place */ }
   const norm = (s) => (s || "").replace(/^v/, "");
   const latest = releases[0] ? releases[0].tag_name : null;
   const outdated = latest && !norm(ver).startsWith(norm(latest)) && !norm(latest).startsWith(norm(ver));
   det.textContent = "";
   det.append(outdated ? t("detect.outdated", { ver, latest }) : t("detect.current", { ver }));
-  det.append(mkBtn(t("detect.continue"), () => setStep(step + 1), "primary small"));
+  det.append(mkBtn(t("detect.continue"), () => setStep(stepIn(1)), "primary small"));
   if (outdated) det.append(mkBtn(t("detect.update"), () => beginFlash(), "small"));
   $("next").disabled = false;
 }
@@ -384,14 +474,16 @@ $("refreshReleases").title = t("flasher.refresh");
 $("refreshReleases").setAttribute("aria-label", t("flasher.refresh"));
 $("refreshReleases").addEventListener("click", () =>
   fetchReleases().then(populateReleaseSelect).catch((e) => log("ERR " + e.message)));
-$("next").addEventListener("click", () => setStep(step + 1));
-$("back").addEventListener("click", () => setStep(step - 1));
+$("next").addEventListener("click", () => setStep(stepIn(1)));
+$("back").addEventListener("click", () => setStep(stepIn(-1)));
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
 $("import").addEventListener("click", () => $("importFile").click());
 $("importFile").addEventListener("change", (e) => {
   if (e.target.files[0]) importBackup(e.target.files[0]).catch((err) => log("ERR " + err.message));
 });
 $("radioFreq").addEventListener("change", (e) => save(`freq ${e.target.value}`));
+$("radioCheck").addEventListener("click", () => loadRadio().catch((e) => log("ERR " + e.message)));
+$("radioListen").addEventListener("click", () => scanAndListen());
 $("pairBtn").addEventListener("click", () => getPairing().catch((e) => log("ERR " + e.message)));
 $("resetBtn").addEventListener("click", () => {
   if (confirm(t("confirm.reset"))) send("reset");

@@ -301,7 +301,9 @@ static int cmd_name(int argc, char **argv)
 /**
  * `freq` prints the device-wide carrier frequency; `freq <mhz>` sets it. The
  * frequency is a single radio setting shared by every shade (EU Somfy RTS
- * motors all use the 433 band), so there is no per-shade index.
+ * motors all use the 433 band), so there is no per-shade index. Setting it also
+ * live-retunes the radio and re-arms RX, so the web wizard can sweep the band
+ * and listen for a remote at each step.
  */
 static int cmd_freq(int argc, char **argv)
 {
@@ -309,6 +311,7 @@ static int cmd_freq(int argc, char **argv)
     float f = strtof(argv[1], NULL);
     if (f < BOARD_FREQ_MIN_MHZ || f > BOARD_FREQ_MAX_MHZ) { printf("ERR freq out of band\n"); return 1; }
     blind_store_set_freq(f);
+    if (s_rf_ok) { cc1101_set_frequency(&s_cc, f); somfy_rx_resume(); }
     printf("OK\n");
     return 0;
 }
@@ -346,6 +349,18 @@ static int cmd_active(int argc, char **argv)
     return 0;
 }
 
+/**
+ * Print radio status as one-line JSON: whether the CC1101 is present (so RF
+ * works at all) and the current device-wide carrier frequency. The web wizard
+ * gates the shade step on `rf` — no point configuring shades a dead radio can't
+ * drive.
+ */
+static int cmd_radio(int, char **)
+{
+    printf("{\"rf\":%s,\"freq\":%.3f}\n", s_rf_ok ? "true" : "false", blind_store_freq());
+    return 0;
+}
+
 static int cmd_version(int, char **) { printf("somfy-thread %s\n", esp_app_get_description()->version); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }
 static int cmd_qr(int, char **)     { printf("%s\n", app_matter_qr()); return 0; }
@@ -359,6 +374,7 @@ static void register_console(void)
 {
     const esp_console_cmd_t cmds[] = {
         {"version","Print firmware id and version",          NULL, &cmd_version, NULL},
+        {"radio",  "Print radio status (rf present, freq) as JSON", NULL, &cmd_radio, NULL},
         {"list",   "List shades as JSON",                    NULL, &cmd_list,   NULL},
         {"tx",     "tx <idx> <up|down|my|stop|prog>",        NULL, &cmd_tx,     NULL},
         {"name",   "name <idx> <text>",                      NULL, &cmd_name,   NULL},
