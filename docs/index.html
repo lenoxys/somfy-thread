@@ -23,9 +23,12 @@
     <li><span class="stepico" data-icon="backup"></span><span data-i18n="step.backup"></span></li>
   </ol>
 
-  <div id="disconnBanner" class="callout bad" hidden>
-    <span data-i18n="disconnect.lost"></span>
-    <button id="reconnect" class="btn small" data-i18n="disconnect.reconnect"></button>
+  <div id="disconnModal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <span class="spinner" data-icon="spinner"></span>
+      <p data-i18n="disconnect.lost"></p>
+      <button id="reconnect" class="btn primary" data-i18n="disconnect.reconnect"></button>
+    </div>
   </div>
 
   <!-- Step 0 — Board: connect, detect firmware, then update / flash / continue -->
@@ -100,7 +103,7 @@
       <summary data-i18n="shades.advTitle"></summary>
       <p class="muted" data-i18n="shades.advHelp"></p>
       <table>
-        <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th></tr></thead>
+        <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th><th></th></tr></thead>
         <tbody id="advBody"></tbody>
       </table>
     </details>

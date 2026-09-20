@@ -24,6 +24,7 @@ int main(void)
 
     shade_t *s = blind_store_get(0);
     assert(s->addr == 0x0000AA && s->rolling == 5 && s->enabled && s->ep_id == 0);
+    assert(!s->remote);  // provenance defaults to PROG until cmd_add flags a clone
     assert(strcmp(s->name, "kitchen") == 0);
 
     // Remove slot 0; slot 1 must stay put (indices never shift).

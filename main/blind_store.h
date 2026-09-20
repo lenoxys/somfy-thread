@@ -17,8 +17,11 @@ extern "C" {
  * shade. `ep_id` is the Matter endpoint id assigned when the shade is first
  * added (0 = none yet) and is persisted so the same identity is resumed across
  * reboots. `enabled` is the "On" switch: whether the shade is exposed over
- * Thread. The carrier frequency is a single device-wide radio setting (all EU
- * Somfy RTS motors share the band), not per-shade — see blind_store_freq().
+ * Thread. `remote` records provenance: true when the shade was cloned from a
+ * physical Somfy remote (discovery), false when it was added via PROG with no
+ * remote — the motor then obeys us only after PROG pairing. The carrier
+ * frequency is a single device-wide radio setting (all EU Somfy RTS motors
+ * share the band), not per-shade — see blind_store_freq().
  */
 typedef struct {
     uint32_t addr;
@@ -26,6 +29,7 @@ typedef struct {
     uint16_t ep_id;
     char     name[16];
     bool     enabled;
+    bool     remote;
 } shade_t;
 
 /**

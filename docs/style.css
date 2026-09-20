@@ -142,6 +142,17 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 .callout.bad { background: color-mix(in srgb, var(--danger) 12%, var(--card)); border-color: var(--danger); }
 .callout .btn { margin: .4rem .4rem 0 0; }
 
+/* blocking reconnect modal: blurs the whole page until the board is back */
+.modal-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: rgba(10,10,25,.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.modal-overlay[hidden] { display: none; }
+.modal-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.75rem; max-width: 22rem; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.spinner { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; color: var(--navy-700); }
+.spinner svg { width: 2.5rem; height: 2.5rem; fill: currentColor; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* tables & inputs */
 table { border-collapse: collapse; width: 100%; }
 th, td { border-bottom: 1px solid var(--line); padding: .5rem; text-align: left; font-size: .92rem; }
@@ -154,6 +165,17 @@ input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--navy
 
 /* per-row motor controls */
 .ctrls { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+
+/* icon-only control button (Open/Stop/Close) */
+.btn.icon { display: inline-grid; place-items: center; padding: .3rem; width: 2rem; height: 2rem; }
+.btn.icon svg { width: 1.2rem; height: 1.2rem; fill: currentColor; }
+
+/* name cell: remote-link badge + editable name */
+.namecell { display: flex; align-items: center; gap: .45rem; }
+.remote-badge { flex: none; display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem;
+  color: var(--muted); opacity: .3; }
+.remote-badge.on { color: var(--yellow-600); opacity: 1; }
+.remote-badge svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
 
 /* a switched-off shade row is greyed but still readable/editable */
 tr.disabled td { color: var(--muted); }

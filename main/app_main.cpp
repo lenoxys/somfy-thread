@@ -371,9 +371,9 @@ static void print_shades_json(void)
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         if (!blind_store_used(i)) continue;
         shade_t *s = blind_store_get(i);
-        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s}",
+        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s,\"remote\":%s}",
                first ? "" : ",", i, s->name, (unsigned long)s->addr, s->rolling,
-               s->enabled ? "true" : "false");
+               s->enabled ? "true" : "false", s->remote ? "true" : "false");
         first = false;
     }
     printf("]\n");
@@ -458,8 +458,10 @@ static int cmd_roll(int argc, char **argv)
  * `add [hexaddr] [rolling] [name...]` — register a shade in the first free slot
  * and bring its Matter endpoint online. With no address the firmware invents a
  * MAC-derived one (the PROG "add a motor without a remote" path); rolling
- * defaults to 1. Prints `OK <idx>` or an error, and rolls the slot back if the
- * endpoint could not be created.
+ * defaults to 1. An explicit address marks the shade remote-linked (cloned from
+ * a physical remote); the invented-address path leaves it PROG-paired. Prints
+ * `OK <idx>` or an error, and rolls the slot back if the endpoint could not be
+ * created.
  */
 static int cmd_add(int argc, char **argv)
 {
@@ -474,6 +476,7 @@ static int cmd_add(int argc, char **argv)
     int idx = blind_store_add(addr, rolling, name[0] ? name : NULL);
     if (idx < 0) { printf("ERR full\n"); return 1; }
     if (!locked_endpoint_up(idx)) { blind_store_remove(idx); printf("ERR endpoint\n"); return 1; }
+    blind_store_get(idx)->remote = (argc >= 2);
     blind_store_save();
     printf("OK %d\n", idx);
     return 0;
@@ -557,7 +560,7 @@ static int cmd_reg(int argc, char **argv)
  * its input/output changes in a way an older configuration site cannot handle.
  * The site refuses to configure a board whose proto is below the one it targets.
  */
-#define SOMFY_PROTO 1
+#define SOMFY_PROTO 2
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }

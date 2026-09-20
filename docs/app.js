@@ -12,7 +12,7 @@ const logEl = $("log");
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
-const REQUIRED_PROTO = 1;
+const REQUIRED_PROTO = 2;
 
 /** Append a line to the on-screen serial log. */
 function log(s) {
@@ -318,7 +318,7 @@ function renderManage() {
   for (const s of shades) {
     const tr = document.createElement("tr");
     tr.classList.toggle("disabled", !s.on);
-    tr.append(inputTd("name", s.name, (v) => save(`name ${s.idx} ${v}`)));
+    tr.append(nameTd(s));
     tr.append(switchTd(s.on, (on) => save(`on ${s.idx} ${on ? 1 : 0}`)));
     tr.append(motorTd(s.idx));
     const rm = document.createElement("td");
@@ -332,22 +332,55 @@ function renderManage() {
     ar.append(td(s.name || String(s.idx)));
     ar.append(inputTd("num", s.addr, (v) => save(`addr ${s.idx} ${v}`)));
     ar.append(inputTd("num", String(s.rolling), (v) => save(`roll ${s.idx} ${v}`)));
+    const progTd = document.createElement("td");
+    progTd.append(mkBtn(t("motor.prog"), () => send(`tx ${s.idx} prog`), "small"));
+    ar.append(progTd);
     adv.append(ar);
   }
 }
 
-/** Motor cell: Somfy RF PROG + movement controls for one shade. */
+/**
+ * Name cell: a remote-link indicator followed by the editable name. The badge is
+ * lit when the shade was cloned from a physical Somfy remote (`remote` true) and
+ * muted when it was added via PROG with no remote.
+ */
+function nameTd(s) {
+  const cell = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "namecell";
+  const badge = document.createElement("span");
+  badge.className = "remote-badge" + (s.remote ? " on" : "");
+  badge.title = t(s.remote ? "shades.remoteLinked" : "shades.remoteNone");
+  icon("remote").then((svg) => { badge.innerHTML = svg; });
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "name";
+  inp.value = s.name;
+  inp.addEventListener("change", () => save(`name ${s.idx} ${inp.value.trim()}`));
+  wrap.append(badge, inp);
+  cell.append(wrap);
+  return cell;
+}
+
+/** Motor cell: Open / Stop / Close as icon buttons (Somfy "My" is the stop button). */
 function motorTd(idx) {
   const cell = document.createElement("td");
   const acts = document.createElement("div");
   acts.className = "ctrls";
-  acts.append(mkBtn(t("motor.prog"), () => send(`tx ${idx} prog`), "primary small"));
-  acts.append(mkBtn(t("motor.open"), () => send(`tx ${idx} up`), "small"));
-  acts.append(mkBtn(t("motor.close"), () => send(`tx ${idx} down`), "small"));
-  acts.append(mkBtn(t("motor.my"), () => send(`tx ${idx} my`), "small"));
-  acts.append(mkBtn(t("motor.stop"), () => send(`tx ${idx} stop`), "small"));
+  acts.append(iconBtn("open", t("motor.open"), () => send(`tx ${idx} up`)));
+  acts.append(iconBtn("stop", t("motor.stop"), () => send(`tx ${idx} stop`)));
+  acts.append(iconBtn("close", t("motor.close"), () => send(`tx ${idx} down`)));
   cell.append(acts);
   return cell;
+}
+
+/** Icon-only button: labelled for a11y via title + aria-label, glyph loaded async. */
+function iconBtn(name, label, onClick) {
+  const b = mkBtn("", onClick, "icon small");
+  b.title = label;
+  b.setAttribute("aria-label", label);
+  icon(name).then((svg) => { b.innerHTML = svg; });
+  return b;
 }
 
 function td(text) { const el = document.createElement("td"); el.textContent = text; return el; }
@@ -478,7 +511,7 @@ async function connect() {
   $("dot").classList.add("on");
   $("statusText").textContent = t("status.connected");
   $("connect").disabled = true;
-  $("disconnBanner").hidden = true;
+  $("disconnModal").hidden = true;
   await detect();
 }
 
@@ -501,7 +534,7 @@ function onDisconnect() {
   $("connect").disabled = false;
   $("connect").textContent = t("board.recheck");
   $("discoverPanel").hidden = true;
-  $("disconnBanner").hidden = false;
+  $("disconnModal").hidden = false;
   gateNext();
 }
 
