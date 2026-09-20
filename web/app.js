@@ -926,6 +926,18 @@ function loadIcons() {
   document.querySelectorAll("[data-icon]").forEach(async (el) => { el.innerHTML = await icon(el.dataset.icon); });
 }
 
+/**
+ * Show the deployed site build in the footer. version.txt is stamped with the
+ * commit by the Pages workflow at deploy; it stays "dev" when served locally or
+ * unstamped.
+ */
+async function loadSiteVersion() {
+  try {
+    const r = await fetch("./version.txt");
+    if (r.ok) $("siteVer").textContent = (await r.text()).trim() || "dev";
+  } catch { /* keep the "dev" default */ }
+}
+
 const THEME_CYCLE = ["light", "dark", "system"];
 const themeBtn = $("theme");
 
@@ -947,6 +959,7 @@ themeBtn.addEventListener("click", () => {
 setTheme(localStorage.getItem("theme") || "system");
 
 loadIcons();
+loadSiteVersion();
 applyI18n();
 fetchReleases();
 setStep(0);

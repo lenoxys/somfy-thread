@@ -65,6 +65,12 @@ Today this drives **Somfy RTS only** (433 MHz, OOK, rolling code in the clear) â
 
 Making **RTS and io-homecontrol coexist** on the same device is a goal, not a promise. io is a different beast: 868/915 MHz (the 433 MHz CC1101 here physically can't reach it, so it needs a second radio), and bidirectional + AES-encrypted with a key-exchange pairing â€” there is no open io stack to build on, which is the real blocker. If that changes, the natural shape is a per-shade `protocol` tag: the WindowCovering endpoints and the whole config/backup flow stay identical, and only the RF dispatch branches on RTS vs io.
 
+## Disclaimer
+
+An independent open-source project, **not affiliated with, endorsed by, or
+sponsored by Somfy**. Somfy and RTS are trademarks of their respective owner,
+used here only to describe interoperability.
+
 ## Credits
 
 This project stands on prior work:

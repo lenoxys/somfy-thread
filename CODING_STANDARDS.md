@@ -10,8 +10,8 @@ firmware plus a static Web Serial configuration site.
 Firmware is C and C++ on ESP-IDF + esp-matter, target `esp32c6`, built with the
 `espressif/esp-matter:release-v1.4_idf_v5.4.1` toolchain (Docker image or a local
 IDF of the same version).
-The configuration site under `docs/` is a static GitHub Pages app: vanilla
-ES modules, no framework, no build step, vendored dependencies (`docs/vendor/`),
+The configuration site under `web/` is a static GitHub Pages app: vanilla
+ES modules, no framework, no build step, vendored dependencies (`web/vendor/`),
 external CSS, strict CSP, and Web Serial as the only transport.
 Pure frame logic (`main/somfy_frame.c`) carries host self-tests that compile with
 a plain `cc` and no ESP dependencies.
@@ -38,7 +38,7 @@ deliberately on the firmware side, never guessed at in the browser.
 
 The contract is versioned. `version` reports a `proto` number
 (`SOMFY_PROTO` in `main/app_main.cpp`); the site targets a `REQUIRED_PROTO`
-(`docs/app.js`) and refuses to configure a board reporting a lower one, prompting
+(`web/app.js`) and refuses to configure a board reporting a lower one, prompting
 an update instead. Any change to the command set — adding, removing, or altering
 a command's inputs or outputs — bumps both numbers together.
 
@@ -96,9 +96,9 @@ note beside them.
 ## Web site rules
 
 Strict CSP; no inline script or style, no CDN — every dependency is vendored
-under `docs/vendor/` and referenced locally.
+under `web/vendor/` and referenced locally.
 CSS lives in external files. User-facing strings go through the i18n tables in
-`docs/lang/`, never hard-coded in logic.
+`web/lang/`, never hard-coded in logic.
 The site degrades honestly: browsers without Web Serial are told to flash the
 `.bin` with `esptool` instead of being left in a broken state.
 

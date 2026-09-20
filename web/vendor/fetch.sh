@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Unlicense
 # Vendor third-party JS locally so the deployed site loads everything
 # same-origin and makes no external request at runtime. Run this before
-# serving/deploying docs/. Pin every version.
+# serving/deploying web/. Pin every version.
 set -e
 EWT_VER=10.0.0
 QRC_VER=1.4.4

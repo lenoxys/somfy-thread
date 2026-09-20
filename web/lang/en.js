@@ -126,4 +126,6 @@ export default {
 
   "disconnect.lost": "Lost the connection to the board.<br>(unplugged?)",
   "disconnect.reconnect": "Reconnect",
+
+  "footer.disclaimer": "An independent open-source project, not affiliated with, endorsed by, or sponsored by Somfy. Somfy and RTS are trademarks of their respective owner.",
 };

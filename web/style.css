@@ -225,3 +225,8 @@ esp-web-install-button { display: inline-block; margin: .5rem 0; }
 #log { background: #0E0E22; color: #7CFC9B; padding: .6rem; border-radius: 8px; height: 11rem;
   overflow: auto; white-space: pre-wrap; font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: .78rem; margin-top: .5rem; }
+
+/* footer */
+.sitever { text-align: center; color: var(--muted); font-size: .75rem; margin: 2rem 0 1rem;
+  font-family: ui-monospace, Menlo, Consolas, monospace; }
+.sitever .disclaimer { margin: .4rem auto 0; max-width: 34rem; font-family: inherit; opacity: .85; }

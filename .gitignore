@@ -13,8 +13,8 @@ __pycache__/
 /tmp/t
 test/t
 
-# vendored third-party JS (fetched by docs/vendor/fetch.sh at build time)
-docs/vendor/*.js
+# vendored third-party JS (fetched by web/vendor/fetch.sh at build time)
+web/vendor/*.js
 
 # vendor hardware reference (Ebyte E07 datasheets/PCB libs — kept local, not redistributed)
 doc/
