@@ -73,6 +73,10 @@ static int frame_to_rmt(const uint8_t frame[SOMFY_FRAME_BYTES],
 
 /**
  * Create the RMT TX channel and copy encoder on the GDO0 pin.
+ * The 48-symbol memory block is one RMT channel: the copy encoder streams the
+ * frame through it in ping-pong halves, which is ample at Somfy's ~600us symbol
+ * rate and leaves RMT channels free for RX (the C6 has only 4; a 128-symbol TX
+ * buffer spanned three and starved the RX channel).
  * @return false if any RMT resource cannot be created or enabled.
  */
 bool somfy_rts_init(somfy_rts_t *ctx, cc1101_t *cc)
@@ -81,7 +85,7 @@ bool somfy_rts_init(somfy_rts_t *ctx, cc1101_t *cc)
     rmt_tx_channel_config_t cfg = {
         .clk_src = RMT_CLK_SRC_DEFAULT,
         .gpio_num = CC1101_PIN_GD0,
-        .mem_block_symbols = 128,
+        .mem_block_symbols = 48,
         .resolution_hz = 1000000,
         .trans_queue_depth = 4,
     };

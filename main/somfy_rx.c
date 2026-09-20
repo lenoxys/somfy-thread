@@ -21,10 +21,13 @@ static rmt_channel_handle_t s_chan;
 static QueueHandle_t        s_q;
 static rmt_symbol_word_t    s_buf[RX_BUF_SYMBOLS];
 
-// A short signal (<150us) is a glitch; a gap over 7ms ends a capture, so each
-// delivered buffer holds one frame's worth of pulses (inter-frame gap is 30ms).
+// signal_range_min_ns drives the RMT hardware glitch filter, which caps at a
+// few microseconds (255 ticks of the source clock) — so it only rejects true
+// electrical glitches; the decoder enforces the real Somfy pulse minimums. A
+// gap over 7ms ends a capture, so each delivered buffer holds one frame's worth
+// of pulses (the inter-frame gap is 30ms).
 static const rmt_receive_config_t s_rxcfg = {
-    .signal_range_min_ns = 150000,
+    .signal_range_min_ns = 1000,
     .signal_range_max_ns = 7000000,
 };
 

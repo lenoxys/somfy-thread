@@ -23,10 +23,10 @@ bottom row  1 GND     3 GDO0    5 SCK     7 MISO/GDO1
 | bottom  | 7 · MISO/GDO1  | SPI data out    | GP20          |
 | top     | 2 · VCC        | 3.3 V power     | 3V3(OUT)      |
 | top     | 4 · CSN        | SPI chip select | GP21          |
-| top     | 6 · MOSI       | SPI data in     | GP18          |
-| top     | 8 · GDO2       | RX data out     | GP23          |
+| top     | 6 · MOSI       | SPI data in     | GP4           |
+| top     | 8 · GDO2       | RX data out     | GP5           |
 
-Both GDO lines are wired: **GDO0 (GP22) transmits** and **GDO2 (GP23) receives** — receive is what lets the board hear your existing remotes for discovery and keep rolling codes in sync. Attach a 433 MHz antenna to the E07. On the ESP32-C6-Zero, `GP18`–`GP22` sit together on the top-right header while `GP23` and power are on the opposite edge, so the wires don't split cleanly by E07 row. The remaining GPIOs are avoided on purpose (GP12/13 native USB, GP8/9/15 strapping/flash, GP4/5 JTAG, GP14 on-board RF antenna switch).
+Both GDO lines are wired: **GDO0 (GP22) transmits** and **GDO2 (GP5) receives** — receive is what lets the board hear your existing remotes for discovery and keep rolling codes in sync. Attach a 433 MHz antenna to the E07. `MOSI (GP4)` and `GDO2 (GP5)` sit on the **left** header, the rest on the top-right — GP4/GP5 are the external-JTAG pins but the console runs over the internal USB-Serial-JTAG, so they're free (and, unlike GP23, actually broken out to a header rather than a back-side pad). The remaining GPIOs are avoided on purpose (GP12/13 native USB, GP8/9/15 strapping/flash, GP14 on-board RF antenna switch).
 
 Default carrier 433.42 MHz; the frequency is a single device-wide radio setting, tunable (a real crystal drifts — sweep 433.36–433.44 if a motor stays silent).
 

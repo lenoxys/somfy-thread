@@ -15,17 +15,20 @@ static const char *TAG = "cc1101";
  * 0x0D streams the demodulated RX data out on GDO2; IOCFG0 (0x02) = 0x2E puts
  * GDO0 in 3-state so the RMT peripheral drives it as the TX-data input; PKTCTRL0
  * (0x08) = 0x32 selects async-serial mode with infinite packet length; MDMCFG2
- * (0x12) = 0x34 selects OOK with carrier-sense sync (SYNC_MODE=4, matching
- * ESPSomfy; the packet engine is bypassed so this only squelches RX noise, and
- * async TX ignores it); FREND0 (0x22) = 0x11 makes the PA ramp between
- * PATABLE[0] (off) and PATABLE[1] (on). The remaining entries are the standard
- * 433 MHz front-end/AGC/calibration defaults. FREQ is written separately from
- * the runtime frequency.
+ * (0x12) = 0x34 selects OOK (the SYNC_MODE=4 field is inert here because the
+ * async packet engine is bypassed and TX ignores it); AGCCTRL2 (0x1B) = 0xC3
+ * disables the top three DVGA gain steps so the idle noise floor stays below the
+ * OOK slicer — without it the free-running AGC amplifies band noise into a
+ * continuous edge stream on GDO2 that floods the RX capture (measured on-air:
+ * ~400 spurious frames/s at 0x03, zero at 0xC3, real remotes still decode);
+ * FREND0 (0x22) = 0x11 makes the PA ramp between PATABLE[0] (off) and PATABLE[1]
+ * (on). The remaining entries are the standard 433 MHz front-end/calibration
+ * defaults. FREQ is written separately from the runtime frequency.
  */
 static const uint8_t init_regs[][2] = {
     {0x00, 0x0D}, {0x02, 0x2E}, {0x03, 0x47}, {0x06, 0xFF}, {0x07, 0x04}, {0x08, 0x32},
     {0x0B, 0x06}, {0x0C, 0x00}, {0x10, 0x8A}, {0x11, 0x83}, {0x12, 0x34},
-    {0x13, 0x22}, {0x14, 0xF8}, {0x18, 0x18}, {0x19, 0x16}, {0x1B, 0x03},
+    {0x13, 0x22}, {0x14, 0xF8}, {0x18, 0x18}, {0x19, 0x16}, {0x1B, 0xC3},
     {0x1C, 0x40}, {0x1D, 0x91}, {0x21, 0x56}, {0x22, 0x11}, {0x23, 0xE9},
     {0x24, 0x2A}, {0x25, 0x00}, {0x26, 0x1F}, {0x2C, 0x81}, {0x2D, 0x35},
     {0x2E, 0x09},

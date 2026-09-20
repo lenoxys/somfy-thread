@@ -515,6 +515,32 @@ static int cmd_radio(int, char **)
     return 0;
 }
 
+/**
+ * Read, write, or dump CC1101 registers for on-air RF tuning. `reg` alone prints
+ * the modem/AGC registers that govern OOK idle-noise behaviour; `reg <hex>`
+ * reads one; `reg <hex> <hex>` writes one and re-enters RX so the change applies
+ * live. A bring-up calibration knob: the demodulator's response to the real
+ * antenna and band noise can only be tuned against the physical setup.
+ */
+static int cmd_reg(int argc, char **argv)
+{
+    if (!s_rf_ok) { printf("no radio\n"); return 1; }
+    static const uint8_t dump[] = {0x10, 0x11, 0x12, 0x15, 0x1B, 0x1C, 0x1D,
+                                   0x21, 0x23, 0x24, 0x25};
+    if (argc < 2) {
+        for (size_t i = 0; i < sizeof(dump); i++)
+            printf("0x%02X=0x%02X\n", dump[i], cc1101_read_reg(&s_cc, dump[i]));
+        return 0;
+    }
+    uint8_t a = (uint8_t)strtoul(argv[1], NULL, 16);
+    if (argc >= 3) {
+        cc1101_write_reg(&s_cc, a, (uint8_t)strtoul(argv[2], NULL, 16));
+        somfy_rx_resume();
+    }
+    printf("0x%02X=0x%02X\n", a, cc1101_read_reg(&s_cc, a));
+    return 0;
+}
+
 static int cmd_version(int, char **) { printf("somfy-thread %s\n", esp_app_get_description()->version); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }
 static int cmd_qr(int, char **)     { printf("%s\n", app_matter_qr()); return 0; }
@@ -536,6 +562,7 @@ static void register_console(void)
         {"tx",     "tx <idx> <up|down|my|stop|prog>",        NULL, &cmd_tx,     NULL},
         {"name",   "name <idx> <text>",                      NULL, &cmd_name,   NULL},
         {"freq",   "freq [mhz] — get/set device radio frequency", NULL, &cmd_freq, NULL},
+        {"reg",    "reg [hexaddr] [hexval] — dump/read/write CC1101 registers", NULL, &cmd_reg, NULL},
         {"addr",   "addr <idx> <hex24>",                     NULL, &cmd_addr,   NULL},
         {"roll",   "roll <idx> <value>",                     NULL, &cmd_roll,   NULL},
         {"export", "Dump full shade table (backup) as JSON", NULL, &cmd_export, NULL},
