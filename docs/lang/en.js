@@ -62,7 +62,7 @@ export default {
   "shades.advHelp": "Internal identifiers, shown for backup and manual restore. You normally never need to touch these.",
   "shades.progHelp": "To add a motor without using its remote: click “Add a shade”, then “No remote? Add the motor manually”. Next, press and hold the <strong>PROG</strong> button on the motor until it jogs, and click <strong>PROG</strong> for that shade in the Advanced section below within a few seconds. The motor jogs again to confirm. This Somfy RF link is separate from Matter (next step).",
   "shades.col.name": "Name",
-  "shades.col.address": "Remote ID",
+  "shades.col.address": "Somfy address",
   "shades.col.rolling": "Rolling",
   "shades.col.on": "On (Thread)",
   "shades.col.motor": "Motor",
