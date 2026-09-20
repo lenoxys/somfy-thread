@@ -4,7 +4,7 @@
 // (shades, motor PROG/test, Matter pairing, backup). One page, all client-side;
 // only the firmware .bin is fetched (from GitHub Releases) when flashing.
 
-import { t, applyI18n } from "./i18n.js";
+import { t, applyI18n, languages, getLang, setLang } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
@@ -211,8 +211,12 @@ function setStep(n) {
     s.hidden = Number(s.dataset.step) !== step;
   });
   document.querySelectorAll("#stepper li").forEach((li, i) => {
+    const done = i < step;
     li.classList.toggle("active", i === step);
-    li.classList.toggle("done", i < step);
+    li.classList.toggle("done", done);
+    li.tabIndex = done ? 0 : -1;
+    if (done) li.setAttribute("role", "button");
+    else li.removeAttribute("role");
   });
   $("back").hidden = step === 0;
   $("next").hidden = step === STEPS - 1;
@@ -893,6 +897,17 @@ $("refreshReleases").addEventListener("click", () =>
   fetchReleases().then(populateReleaseSelect).catch((e) => log("ERR " + e.message)));
 $("next").addEventListener("click", () => setStep(stepIn(1)));
 $("back").addEventListener("click", () => setStep(stepIn(-1)));
+
+/** Jump straight to an already-completed step by clicking (or Enter/Space on) its stepper item. */
+function stepperNav(e) {
+  if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+  const li = e.target.closest("li");
+  if (!li) return;
+  const i = [...$("stepper").children].indexOf(li);
+  if (i >= 0 && i < step) { e.preventDefault(); setStep(i); }
+}
+$("stepper").addEventListener("click", stepperNav);
+$("stepper").addEventListener("keydown", stepperNav);
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
 $("import").addEventListener("click", () => $("importFile").click());
 $("importFile").addEventListener("change", (e) => {
@@ -957,6 +972,32 @@ themeBtn.addEventListener("click", () => {
   setTheme(next);
 });
 setTheme(localStorage.getItem("theme") || "system");
+
+/** Wire the language picker: a translate-icon button opening a menu of the registered languages. */
+const langBtn = $("lang");
+const langMenu = $("langMenu");
+langBtn.title = t("lang.choose");
+langBtn.setAttribute("aria-label", t("lang.choose"));
+for (const { code, name } of languages()) {
+  const li = document.createElement("li");
+  li.setAttribute("role", "option");
+  li.setAttribute("aria-selected", code === getLang() ? "true" : "false");
+  li.tabIndex = 0;
+  li.textContent = name;
+  const pick = () => setLang(code);
+  li.addEventListener("click", pick);
+  li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+  langMenu.append(li);
+}
+const closeLangMenu = () => { langMenu.hidden = true; langBtn.setAttribute("aria-expanded", "false"); };
+langBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const opening = langMenu.hidden;
+  langMenu.hidden = !opening;
+  langBtn.setAttribute("aria-expanded", String(opening));
+});
+document.addEventListener("click", closeLangMenu);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLangMenu(); });
 
 loadIcons();
 loadSiteVersion();

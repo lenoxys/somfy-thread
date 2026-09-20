@@ -8,14 +8,34 @@
 import en from "./lang/en.js";
 
 const MESSAGES = { en };
+const STORE_KEY = "lang";
 
-/** Pick the UI language from the browser, falling back to English. */
+/** Pick the UI language: a stored choice, else the browser's, falling back to English. */
 function detectLang() {
+  const stored = localStorage.getItem(STORE_KEY);
+  if (stored && MESSAGES[stored]) return stored;
   const l = (navigator.language || "en").slice(0, 2);
   return MESSAGES[l] ? l : "en";
 }
 
-const LANG = detectLang();
+let LANG = detectLang();
+
+/** The registered languages as {code, name}, each pack naming itself via lang.name. */
+export function languages() {
+  return Object.keys(MESSAGES).map((code) => ({ code, name: MESSAGES[code]["lang.name"] || code }));
+}
+
+/** The active language code. */
+export function getLang() {
+  return LANG;
+}
+
+/** Persist a language choice and reload so every string (static and JS-built) re-renders. */
+export function setLang(code) {
+  if (!MESSAGES[code] || code === LANG) return;
+  localStorage.setItem(STORE_KEY, code);
+  location.reload();
+}
 
 /** Look up a translated string and substitute {name} placeholders from vars. */
 export function t(key, vars) {

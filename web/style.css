@@ -86,10 +86,20 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
   display: flex; align-items: center; gap: .75rem; }
 .brand { font-weight: 800; font-size: 1.25rem; letter-spacing: -.02em; }
 .brand span { color: var(--yellow); }
-.topbtn { margin-left: auto; display: inline-grid; place-items: center; width: 2rem; height: 2rem;
+.topbtn { display: inline-grid; place-items: center; width: 2rem; height: 2rem;
   padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.12); color: #fff; cursor: pointer; }
 .topbtn:hover { background: rgba(255,255,255,.22); }
 .topbtn svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
+
+/* language picker: a dropdown anchored under the translate button */
+.langpick { margin-left: auto; position: relative; }
+.langmenu { position: absolute; top: calc(100% + .4rem); right: 0; z-index: 20; margin: 0; padding: .25rem;
+  list-style: none; min-width: 8rem; background: var(--card); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.langmenu[hidden] { display: none; }
+.langmenu li { padding: .4rem .6rem; border-radius: 6px; cursor: pointer; font-size: .9rem; }
+.langmenu li:hover, .langmenu li:focus-visible { background: var(--surface-alt); outline: none; }
+.langmenu li[aria-selected="true"] { font-weight: 700; color: var(--navy-700); }
 
 .iconbtn { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0;
   border: 1px solid var(--line); border-radius: 8px; background: var(--surface-alt);
@@ -116,6 +126,9 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 .stepper li.active { color: var(--fg); font-weight: 700; }
 .stepper li.active .stepico { background: var(--navy); border-color: var(--navy); color: #fff; }
 .stepper li.done .stepico { background: var(--yellow); border-color: var(--yellow); color: var(--navy); }
+.stepper li.done { cursor: pointer; }
+.stepper li.done:hover { color: var(--fg); }
+.stepper li.done:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; border-radius: 6px; }
 .stepper li.done::after, .stepper li.active::after { background: var(--yellow); }
 
 /* buttons */

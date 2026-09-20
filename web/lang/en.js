@@ -3,6 +3,8 @@
 // add a language, then register it in i18n.js. English is the fallback.
 
 export default {
+  "lang.name": "English",
+  "lang.choose": "Language",
   "theme.system": "Auto",
   "theme.light": "Light",
   "theme.dark": "Dark",
