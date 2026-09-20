@@ -83,6 +83,28 @@ void     blind_store_save(void);
 uint16_t blind_store_next_rolling(int idx);
 
 /**
+ * @return Slot `idx`'s monitored linked-remote address (0 = none). This is a
+ *         physical Somfy remote the firmware only listens for (never transmits
+ *         as): hearing it mirrors the shade's position when someone uses the
+ *         wall remote, without contending on the shade's own rolling code. It
+ *         lives in an NVS blob separate from the shade table, independent of the
+ *         shade layout and its Matter endpoint ids.
+ */
+uint32_t blind_store_link_addr(int idx);
+
+/**
+ * Set (addr != 0) or clear (addr == 0) slot `idx`'s monitored linked remote and
+ * persist. `rolling` seeds the last-seen code.
+ */
+void     blind_store_set_link(int idx, uint32_t addr, uint16_t rolling);
+
+/**
+ * Record a frame heard from slot `idx`'s linked remote: advance its stored
+ * rolling code if `code` is newer, and persist. No-op if `idx` has no link.
+ */
+void     blind_store_link_seen(int idx, uint16_t code);
+
+/**
  * @return The device-wide carrier frequency in MHz (default BOARD_DEFAULT_FREQ_MHZ).
  */
 float    blind_store_freq(void);

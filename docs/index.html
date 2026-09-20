@@ -86,12 +86,22 @@
     <div class="bar">
       <button id="discover" class="btn primary" data-i18n="shades.discover"></button>
     </div>
-    <div id="discoverPanel" class="callout" hidden>
-      <p id="discoverHint" data-i18n="shades.discoverHint"></p>
-      <div id="discoverCards"></div>
-      <div class="bar">
-        <button id="addMotor" class="btn small" data-i18n="shades.addMotor"></button>
-        <button id="discoverDone" class="btn small" data-i18n="shades.discoverDone"></button>
+    <div id="discoverPanel" class="modal-overlay" hidden>
+      <div class="modal-card modal-wide">
+        <span class="spinner" data-icon="spinner"></span>
+        <p id="discoverHint" data-i18n="shades.discoverHint"></p>
+        <div id="discoverCards"></div>
+        <div class="bar">
+          <button id="addMotor" class="btn small" data-i18n="shades.addMotor"></button>
+          <button id="discoverDone" class="btn small primary" data-i18n="shades.discoverDone"></button>
+        </div>
+      </div>
+    </div>
+    <div id="linkModal" class="modal-overlay" hidden>
+      <div class="modal-card">
+        <span class="spinner" data-icon="spinner"></span>
+        <p data-i18n="shades.linkListen"></p>
+        <button id="linkCancel" class="btn" data-i18n="shades.linkCancel"></button>
       </div>
     </div>
     <table id="shadeTable" hidden>
@@ -104,7 +114,7 @@
       <summary data-i18n="shades.advTitle"></summary>
       <p class="muted" data-i18n="shades.advHelp"></p>
       <table>
-        <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th><th></th></tr></thead>
+        <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th><th data-i18n="shades.col.linked"></th><th></th></tr></thead>
         <tbody id="advBody"></tbody>
       </table>
     </details>

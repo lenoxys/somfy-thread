@@ -11,9 +11,33 @@ static const char *TAG = "blind_store";
 #define NVS_NS   "somfy"
 #define NVS_KEY  "shades"
 #define NVS_FREQ "freq"
+#define NVS_LINK "links"
+
+/** One monitored physical remote per shade (RX-only; 0 = none). */
+typedef struct {
+    uint32_t addr;
+    uint16_t roll;
+} link_t;
 
 static shade_t s_shades[BLIND_MAX_COUNT];
+static link_t  s_links[BLIND_MAX_COUNT];
 static float   s_freq_mhz = BOARD_DEFAULT_FREQ_MHZ;
+
+/**
+ * Persist the linked-remote table to its own NVS blob, independent of the shade
+ * table so the two layouts never interfere.
+ */
+static void save_links(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
+        ESP_LOGW(TAG, "nvs_open failed — link save skipped");
+        return;
+    }
+    nvs_set_blob(h, NVS_LINK, s_links, sizeof(s_links));
+    nvs_commit(h);
+    nvs_close(h);
+}
 
 /**
  * Count the slots in use (addr != 0), for logging only.
@@ -45,6 +69,9 @@ void blind_store_init(void)
         e = nvs_get_blob(h, NVS_KEY, s_shades, &len);
         size_t flen = sizeof(s_freq_mhz);
         nvs_get_blob(h, NVS_FREQ, &s_freq_mhz, &flen);
+        size_t llen = sizeof(s_links);
+        if (nvs_get_blob(h, NVS_LINK, s_links, &llen) != ESP_OK || llen != sizeof(s_links))
+            memset(s_links, 0, sizeof(s_links));
         nvs_close(h);
         if (e == ESP_OK && len == sizeof(s_shades)) {
             ESP_LOGI(TAG, "loaded %d shades from NVS (freq %.3f MHz)", used_count(), s_freq_mhz);
@@ -53,6 +80,7 @@ void blind_store_init(void)
     }
     ESP_LOGI(TAG, "no valid store — starting empty");
     memset(s_shades, 0, sizeof(s_shades));
+    memset(s_links, 0, sizeof(s_links));
     blind_store_save();
 }
 
@@ -85,7 +113,29 @@ void blind_store_remove(int idx)
 {
     if (idx < 0 || idx >= BLIND_MAX_COUNT) return;
     memset(&s_shades[idx], 0, sizeof(s_shades[idx]));
+    memset(&s_links[idx], 0, sizeof(s_links[idx]));
     blind_store_save();
+    save_links();
+}
+
+uint32_t blind_store_link_addr(int idx)
+{
+    if (idx < 0 || idx >= BLIND_MAX_COUNT) return 0;
+    return s_links[idx].addr;
+}
+
+void blind_store_set_link(int idx, uint32_t addr, uint16_t rolling)
+{
+    if (idx < 0 || idx >= BLIND_MAX_COUNT) return;
+    s_links[idx].addr = addr & 0xFFFFFF;
+    s_links[idx].roll = rolling;
+    save_links();
+}
+
+void blind_store_link_seen(int idx, uint16_t code)
+{
+    if (idx < 0 || idx >= BLIND_MAX_COUNT || !s_links[idx].addr) return;
+    if (code > s_links[idx].roll) { s_links[idx].roll = code; save_links(); }
 }
 
 /**

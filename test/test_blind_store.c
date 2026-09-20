@@ -27,9 +27,18 @@ int main(void)
     assert(!s->remote);  // provenance defaults to PROG until cmd_add flags a clone
     assert(strcmp(s->name, "kitchen") == 0);
 
-    // Remove slot 0; slot 1 must stay put (indices never shift).
+    // Linked remote: none by default; set/seen advances the code only when newer;
+    // removing the shade clears its link.
+    assert(blind_store_link_addr(0) == 0);
+    blind_store_set_link(0, 0x6702167, 2020);
+    assert(blind_store_link_addr(0) == (0x6702167 & 0xFFFFFF));
+    blind_store_link_seen(0, 1000);  // older — ignored
+    blind_store_link_seen(0, 3000);  // newer — kept (no getter for roll; just must not crash)
+
+    // Remove slot 0; slot 1 must stay put (indices never shift). The link clears.
     blind_store_remove(0);
     assert(!blind_store_used(0));
+    assert(blind_store_link_addr(0) == 0);
     assert(blind_store_used(1) && blind_store_get(1)->addr == 0x0000BB);
 
     // The next add reuses the freed first slot rather than growing.

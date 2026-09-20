@@ -12,7 +12,7 @@ const logEl = $("log");
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
-const REQUIRED_PROTO = 3;
+const REQUIRED_PROTO = 4;
 
 /** Append a line to the on-screen serial log. */
 function log(s) {
@@ -336,6 +336,7 @@ function renderManage() {
     ar.append(td(s.name || String(s.idx)));
     ar.append(inputTd("num", s.addr, (v) => save(`addr ${s.idx} ${v}`)));
     ar.append(inputTd("num", String(s.rolling), (v) => save(`roll ${s.idx} ${v}`)));
+    ar.append(linkTd(s));
     const progTd = document.createElement("td");
     progTd.append(mkBtn(t("motor.prog"), () => send(`tx ${s.idx} prog`), "small"));
     ar.append(progTd);
@@ -427,6 +428,7 @@ function mkBtn(label, onClick, cls = "") {
 /* ── discovery ────────────────────────────────────────────────────────── */
 
 let discovering = false;
+let linking = false;
 const seen = new Set();
 
 /** @return the set of shade addresses already configured, upper-case hex. */
@@ -497,6 +499,65 @@ function addDiscoverCard(addr, code) {
   $("discoverCards").append(card);
 }
 
+/**
+ * Advanced cell for the monitored physical remote: shows the linked address (or
+ * a dash) with a Link/Unlink action. Link arms a one-shot RF capture; Unlink
+ * clears it.
+ */
+function linkTd(s) {
+  const cell = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "namecell";
+  const has = s.link && s.link !== "000000";
+  const label = document.createElement("span");
+  label.textContent = has ? s.link : t("shades.linkNone");
+  const btn = mkBtn(t(has ? "shades.unlink" : "shades.linkRemote"),
+    () => (has ? mutate(`unlink ${s.idx}`) : linkRemote(s.idx)), "small");
+  wrap.append(label, btn);
+  cell.append(wrap);
+  return cell;
+}
+
+/**
+ * Associate a physical wall remote with shade `idx`: open a blocking modal, then
+ * listen for the next RF frame whose address is not already a shade's own
+ * address and store it as the monitored linked remote (seeding rolling from the
+ * heard code). The modal's Cancel button aborts via cancelLink().
+ */
+async function linkRemote(idx) {
+  if (linking) return;
+  linking = true;
+  const known = knownAddrs();
+  $("linkModal").hidden = false;
+  try {
+    while (linking && connected) {
+      let line;
+      try {
+        line = await waitFor((l) => l.includes("[RX] addr="), 30000);
+      } catch (e) {
+        continue;
+      }
+      if (!linking) return;
+      const ma = line.match(/addr=0x([0-9A-Fa-f]+)/);
+      const mc = line.match(/code=(\d+)/);
+      if (!ma) continue;
+      const addr = ma[1].toUpperCase().padStart(6, "0");
+      if (known.has(addr)) continue;
+      mutate(`link ${idx} ${addr} ${mc ? mc[1] : 0}`);
+      return;
+    }
+  } finally {
+    linking = false;
+    $("linkModal").hidden = true;
+  }
+}
+
+/** Cancel a pending linkRemote() capture and close its modal. */
+function cancelLink() {
+  linking = false;
+  $("linkModal").hidden = true;
+}
+
 /** Add a motor without a remote: the firmware invents an address; then PROG it. */
 function addMotor() {
   mutate(`add`);
@@ -529,6 +590,7 @@ function onDisconnect() {
   if (!connected) return;
   connected = false;
   discovering = false;
+  linking = false;
   scanning = false;
   try { if (writer) writer.releaseLock(); } catch (e) { /* already released */ }
   try { if (port) port.close(); } catch (e) { /* already closing */ }
@@ -538,6 +600,7 @@ function onDisconnect() {
   $("connect").disabled = false;
   $("connect").textContent = t("board.recheck");
   $("discoverPanel").hidden = true;
+  $("linkModal").hidden = true;
   $("disconnModal").hidden = false;
   gateNext();
 }
@@ -717,6 +780,7 @@ function renderQr() {
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 $("discover").addEventListener("click", () => startDiscover().catch((e) => log("ERR " + e.message)));
 $("discoverDone").addEventListener("click", () => stopDiscover());
+$("linkCancel").addEventListener("click", () => cancelLink());
 $("addMotor").addEventListener("click", () => addMotor());
 $("reconnect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 if ("serial" in navigator)

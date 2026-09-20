@@ -381,9 +381,10 @@ static void print_shades_json(void)
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         if (!blind_store_used(i)) continue;
         shade_t *s = blind_store_get(i);
-        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s,\"remote\":%s}",
+        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s,\"remote\":%s,\"link\":\"%06lX\"}",
                first ? "" : ",", i, s->name, (unsigned long)s->addr, s->rolling,
-               s->enabled ? "true" : "false", s->remote ? "true" : "false");
+               s->enabled ? "true" : "false", s->remote ? "true" : "false",
+               (unsigned long)blind_store_link_addr(i));
         first = false;
     }
     printf("]\n");
@@ -507,6 +508,34 @@ static int cmd_remove(int argc, char **argv)
 }
 
 /**
+ * `link <idx> <hexaddr> [rolling]` — associate a physical Somfy remote we only
+ * listen for, so pressing that wall remote mirrors the shade's position. Never
+ * transmitted as; the shade keeps its own address for TX. `unlink <idx>` clears
+ * it (`link <idx> 0` also clears).
+ */
+static int cmd_link(int argc, char **argv)
+{
+    if (argc < 3) { printf("ERR usage: link <idx> <hexaddr> [rolling]\n"); return 1; }
+    int idx = atoi(argv[1]);
+    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    uint32_t addr = (uint32_t)strtoul(argv[2], NULL, 16);
+    uint16_t roll = (argc >= 4) ? (uint16_t)atoi(argv[3]) : 0;
+    blind_store_set_link(idx, addr, roll);
+    printf("OK\n");
+    return 0;
+}
+
+static int cmd_unlink(int argc, char **argv)
+{
+    if (argc < 2) { printf("ERR usage: unlink <idx>\n"); return 1; }
+    int idx = atoi(argv[1]);
+    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    blind_store_set_link(idx, 0, 0);
+    printf("OK\n");
+    return 0;
+}
+
+/**
  * `on <idx> <0|1>` — the exposure switch. 1 resumes the shade's endpoint on
  * Thread (same stable id); 0 destroys it, keeping the persisted id for a later
  * re-enable. No-op if already in the requested state.
@@ -570,7 +599,7 @@ static int cmd_reg(int argc, char **argv)
  * its input/output changes in a way an older configuration site cannot handle.
  * The site refuses to configure a board whose proto is below the one it targets.
  */
-#define SOMFY_PROTO 3
+#define SOMFY_PROTO 4
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }
@@ -591,6 +620,8 @@ static void register_console(void)
         {"add",    "add [hexaddr] [rolling] [name...] — register a shade", NULL, &cmd_add, NULL},
         {"remove", "remove <idx> — delete a shade",          NULL, &cmd_remove, NULL},
         {"on",     "on <idx> <0|1> — expose shade over Thread", NULL, &cmd_on,  NULL},
+        {"link",   "link <idx> <hexaddr> [rolling] — monitor a physical remote", NULL, &cmd_link,   NULL},
+        {"unlink", "unlink <idx> — stop monitoring the linked remote", NULL, &cmd_unlink, NULL},
         {"tx",     "tx <idx> <up|down|my|stop|prog>",        NULL, &cmd_tx,     NULL},
         {"name",   "name <idx> <text>",                      NULL, &cmd_name,   NULL},
         {"freq",   "freq [mhz] — get/set device radio frequency", NULL, &cmd_freq, NULL},
@@ -631,16 +662,23 @@ static void rx_pos_work(intptr_t arg)
 extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
 {
     int idx = -1;
+    bool via_link = false;
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         if (blind_store_used(i) && blind_store_get(i)->addr == addr) { idx = i; break; }
     }
-    ESP_LOGI(TAG, "[RX] addr=0x%06lX code=%u cmd=0x%X idx=%d",
-             (unsigned long)addr, code, cmd, idx);
+    if (idx < 0) {
+        for (int i = 0; i < BLIND_MAX_COUNT; i++) {
+            if (blind_store_used(i) && blind_store_link_addr(i) == addr) { idx = i; via_link = true; break; }
+        }
+    }
+    ESP_LOGI(TAG, "[RX] addr=0x%06lX code=%u cmd=0x%X idx=%d%s",
+             (unsigned long)addr, code, cmd, idx, via_link ? " (linked)" : "");
     if (idx < 0) return;  // unknown address — a remote the web discovery step can add
     if (esp_timer_get_time() - s_last_tx_us < WC_RX_ECHO_GUARD_US) return;
 
     shade_t *s = blind_store_get(idx);
-    if (code > s->rolling) { s->rolling = code; blind_store_save(); }
+    if (via_link) blind_store_link_seen(idx, code);
+    else if (code > s->rolling) { s->rolling = code; blind_store_save(); }
 
     if (!s->enabled || !s_wc_ep_ids[idx]) return;  // not exposed — no endpoint to mirror to
     uint16_t pos;
