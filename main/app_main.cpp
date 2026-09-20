@@ -42,6 +42,7 @@ extern "C" {
 #include "somfy_rx.h"
 #include "somfy_frame.h"
 #include "blind_store.h"
+#include "wc_motion.h"
 }
 
 static const char *TAG = "somfy_thread";
@@ -114,42 +115,209 @@ static int ep_to_idx(uint16_t ep)
     return -1;
 }
 
+/**
+ * Timed position estimate. Somfy RTS gives no feedback, so once a shade starts
+ * moving we ramp its reported CurrentPositionLiftPercent100ths linearly toward
+ * the target over the configured travel time, reporting intermediate values so
+ * controllers show motion. All motion state and every attribute write is funnelled
+ * onto the Matter/CHIP thread (the delegate runs there; the RX task and the
+ * periodic timer hop over via ScheduleWork), so no locking is needed here.
+ */
+typedef struct {
+    bool     active;
+    uint16_t from;
+    uint16_t target;
+    int64_t  start_us;
+    int64_t  dur_us;
+    bool     send_stop;
+} motion_t;
+static motion_t          s_motion[BLIND_MAX_COUNT];
+static esp_timer_handle_t s_motion_timer;
+static bool               s_motion_timer_on;
+
+/**
+ * Write a shade's CurrentPositionLiftPercent100ths. Setting the attribute directly
+ * (not through the delegate) does not re-trigger HandleMovement, so there is no
+ * feedback loop. No-op if the shade has no live endpoint.
+ */
+static void wc_set_current(int idx, uint16_t pos)
+{
+    if (!s_wc_ep_ids[idx]) return;
+    chip::app::DataModel::Nullable<chip::Percent100ths> p(pos);
+    WC::Attributes::CurrentPositionLiftPercent100ths::Set(s_wc_ep_ids[idx], p);
+}
+
+/**
+ * @return The shade's last reported position, or 0 (fully open) if unknown. On
+ *         boot the true position is unknown; a full open/close re-zeros it.
+ */
+static uint16_t wc_get_current(int idx)
+{
+    chip::app::DataModel::Nullable<chip::Percent100ths> cur;
+    if (s_wc_ep_ids[idx]
+            && WC::Attributes::CurrentPositionLiftPercent100ths::Get(s_wc_ep_ids[idx], cur)
+                   == chip::Protocols::InteractionModel::Status::Success && !cur.IsNull())
+        return cur.Value();
+    return 0;
+}
+
+/**
+ * @return The live estimated position: the mid-ramp interpolation while moving,
+ *         else the last reported position.
+ */
+static uint16_t motion_current(int idx)
+{
+    motion_t *m = &s_motion[idx];
+    if (m->active)
+        return wc_motion_lerp(m->from, m->target, esp_timer_get_time() - m->start_us, m->dur_us);
+    return wc_get_current(idx);
+}
+
+static void motion_timer_stop(void)
+{
+    if (!s_motion_timer_on) return;
+    esp_timer_stop(s_motion_timer);
+    s_motion_timer_on = false;
+}
+
+/**
+ * Periodic tick (on the Matter thread): advance every active shade's reported
+ * position, retire those that reached target — sending a Somfy MY to physically
+ * stop a mid-travel move — and stop the timer once nothing is moving.
+ */
+static void motion_tick_work(intptr_t)
+{
+    int64_t now = esp_timer_get_time();
+    int active = 0;
+    for (int i = 0; i < BLIND_MAX_COUNT; i++) {
+        motion_t *m = &s_motion[i];
+        if (!m->active) continue;
+        if (now - m->start_us >= m->dur_us) {
+            wc_set_current(i, m->target);
+            m->active = false;
+            if (m->send_stop) app_rf_submit(i, SOMFY_MY);
+        } else {
+            wc_set_current(i, wc_motion_lerp(m->from, m->target, now - m->start_us, m->dur_us));
+            active++;
+        }
+    }
+    if (!active) motion_timer_stop();
+}
+
+static void motion_timer_cb(void *)
+{
+    chip::DeviceLayer::PlatformMgr().ScheduleWork(motion_tick_work, 0);
+}
+
+static void motion_timer_start(void)
+{
+    if (s_motion_timer_on) return;
+    if (!s_motion_timer) {
+        esp_timer_create_args_t a = {};
+        a.callback = motion_timer_cb;
+        a.name = "wc_motion";
+        if (esp_timer_create(&a, &s_motion_timer) != ESP_OK) return;
+    }
+    esp_timer_start_periodic(s_motion_timer, 250 * 1000);
+    s_motion_timer_on = true;
+}
+
+/**
+ * Start a timed move of shade `idx` to `target`, ramping the reported position
+ * over the fraction of `travel_ms` the distance covers. With no travel time (or
+ * nothing to move) it snaps to target — the pre-estimate behaviour. `send_stop`
+ * asks for a Somfy MY at the end, used for a mid-travel target the motor would
+ * otherwise run past to its end stop. Matter thread only.
+ */
+static void motion_go(int idx, uint16_t target, uint16_t travel_ms, bool send_stop)
+{
+    uint16_t cur = motion_current(idx);
+    if (travel_ms == 0 || target == cur) {
+        s_motion[idx].active = false;
+        wc_set_current(idx, target);
+        return;
+    }
+    motion_t *m = &s_motion[idx];
+    m->from      = cur;
+    m->target    = target;
+    m->start_us  = esp_timer_get_time();
+    m->dur_us    = wc_motion_dur_us(cur, target, travel_ms);
+    m->send_stop = send_stop;
+    m->active    = true;
+    motion_timer_start();
+}
+
+/**
+ * Freeze a moving shade's estimate where it is now (a mid-travel Stop).
+ */
+static void motion_stop(int idx)
+{
+    motion_t *m = &s_motion[idx];
+    if (!m->active) return;
+    uint16_t pos = wc_motion_lerp(m->from, m->target, esp_timer_get_time() - m->start_us, m->dur_us);
+    m->active = false;
+    wc_set_current(idx, pos);
+}
+
+/**
+ * Model a Somfy MY, which the motor interprets by context: while moving it stops;
+ * while idle it drives to the stored favourite. We only send the frame, so we
+ * replicate both here — freeze if we think it is moving, else run a timed move
+ * toward `my_pct` (skipped when the favourite is unknown, since we cannot guess
+ * it). Matter thread only.
+ */
+static void motion_my(int idx)
+{
+    if (s_motion[idx].active) { motion_stop(idx); return; }
+    shade_t *s = blind_store_get(idx);
+    if (!s || s->my_pct == SHADE_MY_UNSET) return;
+    uint16_t target = (uint16_t)s->my_pct * 100;
+    uint16_t cur = wc_get_current(idx);
+    motion_go(idx, target, (target > cur) ? s->down_ms : s->up_ms, false);
+}
+
 class SomfyWCDelegate : public WC::Delegate {
 public:
     /**
-     * Translate a lift movement into a Somfy command. When a current position
-     * is known, target above current closes (DOWN) and below opens (UP);
-     * otherwise near-fully-closed maps to DOWN, near-fully-open to UP, and mid
-     * to MY (favourite). Submits the command and mirrors Current to Target.
+     * Translate a lift movement into a Somfy command and start the timed position
+     * estimate. Target above the current estimate closes, below opens; `invert`
+     * swaps which Somfy direction that is for reversed installs. A mid-travel
+     * target schedules a Somfy MY stop when the estimate reaches it (the motor
+     * would otherwise run to its end stop); an end-stop target lets the motor stop
+     * itself and is always re-sent so a full open/close can re-zero a drifted
+     * estimate.
      */
     CHIP_ERROR HandleMovement(WC::WindowCoveringType type) override
     {
         if (type != WC::WindowCoveringType::Lift) return CHIP_NO_ERROR;
-        chip::app::DataModel::Nullable<chip::Percent100ths> tgt, cur;
+        chip::app::DataModel::Nullable<chip::Percent100ths> tgt;
         if (WC::Attributes::TargetPositionLiftPercent100ths::Get(mEndpoint, tgt)
                 != chip::Protocols::InteractionModel::Status::Success || tgt.IsNull())
             return CHIP_NO_ERROR;
+        int idx = ep_to_idx(mEndpoint);
+        shade_t *s = blind_store_get(idx);
+        if (!s) return CHIP_NO_ERROR;
         uint16_t v = tgt.Value();
-        bool hasCur = WC::Attributes::CurrentPositionLiftPercent100ths::Get(mEndpoint, cur)
-                          == chip::Protocols::InteractionModel::Status::Success && !cur.IsNull();
-        uint8_t cmd;
-        if (hasCur && cur.Value() != v) cmd = (v > cur.Value()) ? SOMFY_DOWN : SOMFY_UP;
-        else if (v >= 9500)             cmd = SOMFY_DOWN;
-        else if (v <= 500)              cmd = SOMFY_UP;
-        else                            cmd = SOMFY_MY;
+        uint16_t cur = motion_current(idx);
+        bool endstop = (v == 0 || v == 10000);
+        if (v == cur && !endstop) return CHIP_NO_ERROR;
+
+        bool closing = (v == cur) ? (v == 10000) : (v > cur);
+        uint8_t cmd = (closing != s->invert) ? SOMFY_DOWN : SOMFY_UP;
 
         s_last_move_us = esp_timer_get_time();
         s_last_move_ep = mEndpoint;
-        int idx = ep_to_idx(mEndpoint);
         ESP_LOGI(TAG, "[WC] ep=%u idx=%d lift=%u%% cmd=0x%X", mEndpoint, idx, v / 100, cmd);
         app_rf_submit(idx, cmd);
-        WC::Attributes::CurrentPositionLiftPercent100ths::Set(mEndpoint, tgt);
+        motion_go(idx, v, closing ? s->down_ms : s->up_ms, !endstop);
         return CHIP_NO_ERROR;
     }
 
     /**
-     * Send the Somfy MY (stop) command for a genuine user stop, ignoring the
-     * auto-call CHIP emits right after a movement (see WC_STOP_GUARD_US).
+     * Handle a genuine user Stop, ignoring the auto-call CHIP emits right after a
+     * movement (see WC_STOP_GUARD_US). Sends Somfy MY and models it: a moving
+     * shade freezes, an idle one drives to its favourite (the motor's own MY
+     * behaviour — see motion_my).
      */
     CHIP_ERROR HandleStopMotion() override
     {
@@ -159,6 +327,7 @@ public:
         int idx = ep_to_idx(mEndpoint);
         ESP_LOGI(TAG, "[WC] ep=%u idx=%d stop -> MY", mEndpoint, idx);
         app_rf_submit(idx, SOMFY_MY);
+        motion_my(idx);
         return CHIP_NO_ERROR;
     }
 };
@@ -381,10 +550,11 @@ static void print_shades_json(void)
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         if (!blind_store_used(i)) continue;
         shade_t *s = blind_store_get(i);
-        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s,\"remote\":%s,\"link\":\"%06lX\"}",
+        printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s,\"remote\":%s,\"link\":\"%06lX\",\"up_ms\":%u,\"down_ms\":%u,\"my\":%d,\"invert\":%s}",
                first ? "" : ",", i, s->name, (unsigned long)s->addr, s->rolling,
                s->enabled ? "true" : "false", s->remote ? "true" : "false",
-               (unsigned long)blind_store_link_addr(i));
+               (unsigned long)blind_store_link_addr(i),
+               s->up_ms, s->down_ms, s->my_pct, s->invert ? "true" : "false");
         first = false;
     }
     printf("]\n");
@@ -460,6 +630,28 @@ static int cmd_roll(int argc, char **argv)
     shade_t *s = blind_store_get(idx);
     if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
     s->rolling = (uint16_t)strtoul(argv[2], NULL, 10);
+    blind_store_save();
+    printf("OK\n");
+    return 0;
+}
+
+/**
+ * `pos <idx> <up_ms> <down_ms> [my_pct 0-100|255] [invert 0|1]` — set the
+ * position-estimate parameters. `up_ms`/`down_ms` are the full-open/full-close
+ * travel times (0 = snap to target instead of estimating); `my_pct` is our copy
+ * of the motor's favourite position (255 = unknown); `invert` swaps open/close
+ * for reversed installs. Omitted trailing args are left unchanged.
+ */
+static int cmd_pos(int argc, char **argv)
+{
+    if (argc < 4) { printf("ERR usage: pos <idx> <up_ms> <down_ms> [my_pct] [invert]\n"); return 1; }
+    int idx = atoi(argv[1]);
+    shade_t *s = blind_store_get(idx);
+    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    s->up_ms   = (uint16_t)strtoul(argv[2], NULL, 10);
+    s->down_ms = (uint16_t)strtoul(argv[3], NULL, 10);
+    if (argc >= 5) s->my_pct = (uint8_t)strtoul(argv[4], NULL, 10);
+    if (argc >= 6) s->invert = atoi(argv[5]) != 0;
     blind_store_save();
     printf("OK\n");
     return 0;
@@ -599,7 +791,7 @@ static int cmd_reg(int argc, char **argv)
  * its input/output changes in a way an older configuration site cannot handle.
  * The site refuses to configure a board whose proto is below the one it targets.
  */
-#define SOMFY_PROTO 4
+#define SOMFY_PROTO 5
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }
@@ -628,6 +820,7 @@ static void register_console(void)
         {"reg",    "reg [hexaddr] [hexval] — dump/read/write CC1101 registers", NULL, &cmd_reg, NULL},
         {"addr",   "addr <idx> <hex24>",                     NULL, &cmd_addr,   NULL},
         {"roll",   "roll <idx> <value>",                     NULL, &cmd_roll,   NULL},
+        {"pos",    "pos <idx> <up_ms> <down_ms> [my_pct] [invert]", NULL, &cmd_pos, NULL},
         {"export", "Dump full shade table (backup) as JSON", NULL, &cmd_export, NULL},
         {"qr",     "Print Matter QR payload",                NULL, &cmd_qr,     NULL},
         {"pair",   "Open commissioning window, print code",  NULL, &cmd_pair,   NULL},
@@ -639,15 +832,21 @@ static void register_console(void)
 }
 
 /**
- * Set a shade's lift position on the Matter thread. Argument packs endpoint id
- * in the high 16 bits and position (0..10000) in the low 16.
+ * Feed an observed remote press into the timed position model on the Matter
+ * thread, so a physical up/down/My keeps the reported position in sync. Argument
+ * packs the shade index in the high bits and the Somfy command in the low byte.
+ * `invert` decides which physical direction opens; My defers to motion_my's
+ * moving-vs-idle branch (stop vs favourite).
  */
-static void rx_pos_work(intptr_t arg)
+static void rx_motion_work(intptr_t arg)
 {
-    uint16_t ep = (uint16_t)((uint32_t)arg >> 16);
-    chip::app::DataModel::Nullable<chip::Percent100ths> pos((uint16_t)(arg & 0xFFFF));
-    WC::Attributes::CurrentPositionLiftPercent100ths::Set(ep, pos);
-    WC::Attributes::TargetPositionLiftPercent100ths::Set(ep, pos);
+    int idx = (int)(arg >> 8);
+    uint8_t cmd = (uint8_t)(arg & 0xFF);
+    shade_t *s = blind_store_get(idx);
+    if (!s || !s->enabled || !s_wc_ep_ids[idx]) return;
+    if (cmd == SOMFY_MY) { motion_my(idx); return; }
+    bool opening = (cmd == SOMFY_UP) != s->invert;
+    motion_go(idx, opening ? 0 : 10000, opening ? s->up_ms : s->down_ms, false);
 }
 
 /**
@@ -681,12 +880,8 @@ extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
     else if (code > s->rolling) { s->rolling = code; blind_store_save(); }
 
     if (!s->enabled || !s_wc_ep_ids[idx]) return;  // not exposed — no endpoint to mirror to
-    uint16_t pos;
-    if (cmd == SOMFY_UP)        pos = 0;
-    else if (cmd == SOMFY_DOWN) pos = 10000;
-    else                        return;  // MY/PROG/other: position unknown
-    intptr_t arg = ((intptr_t)s_wc_ep_ids[idx] << 16) | pos;
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_pos_work, arg);
+    if (cmd != SOMFY_UP && cmd != SOMFY_DOWN && cmd != SOMFY_MY) return;  // PROG/other: no position change
+    chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_motion_work, ((intptr_t)idx << 8) | cmd);
 }
 
 /**

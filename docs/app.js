@@ -12,7 +12,7 @@ const logEl = $("log");
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
-const REQUIRED_PROTO = 4;
+const REQUIRED_PROTO = 5;
 
 /** Append a line to the on-screen serial log. */
 function log(s) {
@@ -691,9 +691,10 @@ async function exportBackup() {
 
 /**
  * Restore a backup onto a fresh (or factory-reset) device: set the global radio
- * frequency, then re-create each shade with `add` (address + rolling + name).
- * Shades come back exposed; any that were off in the backup are switched off
- * afterwards. Identity is by radio address, so the re-assigned slot index does
+ * frequency, then re-create each shade with `add` (address + rolling + name) and
+ * restore its linked remote and position-estimate params (travel times, favourite,
+ * invert). Shades come back exposed; any that were off in the backup are switched
+ * off afterwards. Identity is by radio address, so the re-assigned slot index does
  * not matter.
  */
 async function importBackup(file) {
@@ -704,7 +705,12 @@ async function importBackup(file) {
     const line = await request(`add ${s.addr} ${s.rolling} ${s.name}`,
                                (l) => l.startsWith("OK") || l.startsWith("ERR"), 5000);
     const m = line.match(/^OK (\d+)/);
-    if (m && s.on === false) await send(`on ${m[1]} 0`);
+    if (!m) continue;
+    const idx = m[1];
+    if (s.link && s.link !== "000000") await send(`link ${idx} ${s.link}`);
+    if (s.up_ms || s.down_ms || s.invert || (s.my !== undefined && s.my !== 255))
+      await send(`pos ${idx} ${s.up_ms || 0} ${s.down_ms || 0} ${s.my ?? 255} ${s.invert ? 1 : 0}`);
+    if (s.on === false) await send(`on ${idx} 0`);
   }
   await refresh();
 }

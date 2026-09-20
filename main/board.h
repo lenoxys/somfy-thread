@@ -22,4 +22,4 @@
 #define BOARD_FREQ_MIN_MHZ      433.05f
 #define BOARD_FREQ_MAX_MHZ      434.79f
 
-#define BLIND_MAX_COUNT         8
+#define BLIND_MAX_COUNT         32

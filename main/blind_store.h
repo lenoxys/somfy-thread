@@ -21,7 +21,13 @@ extern "C" {
  * physical Somfy remote (discovery), false when it was added via PROG with no
  * remote — the motor then obeys us only after PROG pairing. The carrier
  * frequency is a single device-wide radio setting (all EU Somfy RTS motors
- * share the band), not per-shade — see blind_store_freq().
+ * share the band), not per-shade — see blind_store_freq(). `up_ms`/`down_ms` are
+ * the measured full-open and full-close travel times (0 = unknown → the position
+ * estimate snaps to target instead of ramping). `my_pct` is the motor's favourite
+ * ("my") position as a 0..100 percent-closed value, or SHADE_MY_UNSET when
+ * unknown; it is set physically by holding the remote's My button and cannot be
+ * read over RF, so this is only our copy of it. `invert` flips open/close for
+ * reversed installs.
  */
 typedef struct {
     uint32_t addr;
@@ -30,7 +36,13 @@ typedef struct {
     char     name[16];
     bool     enabled;
     bool     remote;
+    uint16_t up_ms;
+    uint16_t down_ms;
+    uint8_t  my_pct;
+    bool     invert;
 } shade_t;
+
+#define SHADE_MY_UNSET 0xFF
 
 /**
  * Initialise NVS and load the slot table. Starts empty (0 shades) on first boot

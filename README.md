@@ -2,7 +2,7 @@
 
 Control Somfy RTS blinds over **Matter-over-Thread** with a **Waveshare ESP32-C6-Zero** and an **E07-M1101D (CC1101, 433 MHz)** radio. No MQTT, no on-device web server, no cloud — it's a standard Matter device, so it works with any Matter controller and Thread border router (Apple Home, Google Home, SmartThings, Home Assistant…) and nothing else.
 
-Firmware is **generic**: it exposes eight WindowCovering endpoints, each mapped to a Somfy RTS remote address. You pair (PROG) your own motors onto it. All configuration, PROG pairing, and backup/restore happen from a **static browser page over Web Serial** — there is no code to write and nothing is sent anywhere.
+Firmware is **generic**: it starts with no shades and you add them on demand (up to a fixed capacity), each exposing its own WindowCovering endpoint with a stable Matter identity. Add a shade by cloning one of your Somfy remotes (the board hears it) or by PROG-pairing a motor that has no remote; a shade can also monitor a linked physical wall remote so pressing it stays in sync. All configuration, PROG pairing, and backup/restore happen from a **static browser page over Web Serial** — there is no code to write and nothing is sent anywhere.
 
 ## Hardware
 
