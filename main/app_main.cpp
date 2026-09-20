@@ -605,8 +605,12 @@ static uint8_t parse_cmd(const char *s)
 /**
  * Print the whole shade table as a JSON array on one line. This is what `list`
  * and `export` emit, and what the WebSerial page parses for display and backup.
+ * `live` reports the mid-ramp estimate for a shade that is currently moving (so
+ * the page can poll `list` and watch a linked-remote press animate); `export`
+ * passes false to keep backups on the settled position. The motion fields are
+ * read without the CHIP lock — a torn read only blips one poll of a display %.
  */
-static void print_shades_json(void)
+static void print_shades_json(bool live)
 {
     printf("[");
     bool first = true;
@@ -615,18 +619,23 @@ static void print_shades_json(void)
         shade_t *s = blind_store_get(i);
         char nm[sizeof(s->name) * 6 + 1];
         json_escape(s->name, nm, sizeof(nm));
+        uint16_t pos = (live && s_motion[i].active)
+            ? wc_motion_lerp(s_motion[i].from, s_motion[i].target,
+                             esp_timer_get_time() - s_motion[i].start_us,
+                             s_motion[i].dur_us, s_motion[i].lag_us)
+            : s->pos;
         printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s,\"remote\":%s,\"link\":\"%06lX\",\"up_ms\":%u,\"down_ms\":%u,\"my\":%d,\"invert\":%s,\"up_lag\":%u,\"down_lag\":%u,\"pos\":%u}",
                first ? "" : ",", i, nm, (unsigned long)s->addr, s->rolling,
                s->enabled ? "true" : "false", s->remote ? "true" : "false",
                (unsigned long)blind_store_link_addr(i),
                s->up_ms, s->down_ms, s->my_pct, s->invert ? "true" : "false",
-               s->up_lag_ms, s->down_lag_ms, s->pos);
+               s->up_lag_ms, s->down_lag_ms, pos);
         first = false;
     }
     printf("]\n");
 }
 
-static int cmd_list(int, char **) { print_shades_json(); return 0; }
+static int cmd_list(int, char **) { print_shades_json(true); return 0; }
 
 static int cmd_tx(int argc, char **argv)
 {
@@ -900,7 +909,7 @@ static int cmd_reg(int argc, char **argv)
 #define SOMFY_PROTO 8
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
-static int cmd_export(int, char **) { print_shades_json(); return 0; }
+static int cmd_export(int, char **) { print_shades_json(false); return 0; }
 static int cmd_qr(int, char **)     { printf("%s\n", app_matter_qr()); return 0; }
 static int cmd_pair(int, char **)   { app_matter_open_window(); printf("%s\n", app_matter_manual()); return 0; }
 static int cmd_mstat(int, char **)  { printf("{\"fabrics\":%d}\n", app_matter_fabric_count()); return 0; }

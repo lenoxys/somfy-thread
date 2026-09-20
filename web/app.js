@@ -227,6 +227,7 @@ function setStep(n) {
   if (step === RADIO_STEP) loadRadio().catch((e) => log("ERR " + e.message));
   if (step === SHADES_STEP && connected) refresh().catch((e) => log("ERR " + e.message));
   if (step === MATTER_STEP) loadMatter().catch((e) => log("ERR " + e.message));
+  if (step === SHADES_STEP && connected) startPosPoll(); else stopPosPoll();
 }
 
 /** Gate the Next button: needs a connection, and a working radio to leave the radio step. */
@@ -357,6 +358,34 @@ async function refresh() {
   shades = JSON.parse(line);
   renderManage();
 }
+
+let posPolling = false;
+
+/**
+ * While on the shades step, poll `list` (~1.2 s) and patch only the position
+ * cells, so a linked-remote press animates live. Patching in place (not a full
+ * renderManage) keeps an open detail editor and its focused inputs intact.
+ * Self-reschedules after each reply so polls never overlap on a slow link.
+ */
+function startPosPoll() {
+  if (posPolling) return;
+  posPolling = true;
+  const tick = async () => {
+    if (!posPolling) return;
+    try {
+      const arr = JSON.parse(await request("list", (l) => l.startsWith("[")));
+      for (const s of arr) {
+        const cell = document.querySelector(`#manageBody [data-pos="${s.idx}"]`);
+        if (cell) cell.textContent = `${Math.round((s.pos || 0) / 100)}%`;
+      }
+    } catch (e) { /* transient (timeout / disconnect) — try again next tick */ }
+    if (posPolling) setTimeout(tick, 1200);
+  };
+  setTimeout(tick, 1200);
+}
+
+/** Stop the position poll (leaving the shades step or on disconnect). */
+function stopPosPoll() { posPolling = false; }
 
 /**
  * Send a setter command and confirm it against the board's reply: every firmware
@@ -684,13 +713,15 @@ function myControl(s) {
 }
 
 /**
- * Position cell: the shade's last estimated position as percent closed (0 = open,
- * 100 = closed), read-only. It reflects the firmware's persisted estimate at the
- * last `list`, so it updates on refresh, not live during a move.
+ * Position cell: the shade's estimated position as percent closed (0 = open,
+ * 100 = closed), read-only. Tagged with data-pos so the shades-step poll
+ * (startPosPoll) can patch it live as a move — including a linked-remote
+ * press — ramps.
  */
 function posTd(s) {
   const cell = document.createElement("td");
   cell.className = "muted";
+  cell.dataset.pos = s.idx;
   cell.textContent = `${Math.round((s.pos || 0) / 100)}%`;
   return cell;
 }
@@ -939,6 +970,7 @@ function onDisconnect() {
   discovering = false;
   linking = false;
   scanning = false;
+  stopPosPoll();
   try { if (writer) writer.releaseLock(); } catch (e) { /* already released */ }
   try { if (port) port.close(); } catch (e) { /* already closing */ }
   writer = null; port = null;
