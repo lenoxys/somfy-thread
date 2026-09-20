@@ -328,6 +328,16 @@ extern "C" void app_matter_open_window(void)
     chip::DeviceLayer::PlatformMgr().ScheduleWork(open_cw_work, 0);
 }
 
+/**
+ * @return The number of Matter fabrics the device is commissioned to (0 = not
+ *         yet paired). Lets the web branch initial pairing vs adding another
+ *         ecosystem. Read directly like app_matter_qr/manual (console thread).
+ */
+extern "C" int app_matter_fabric_count(void)
+{
+    return chip::Server::GetInstance().GetFabricTable().FabricCount();
+}
+
 static void factory_reset_work(intptr_t)
 {
     auto &ft = chip::Server::GetInstance().GetFabricTable();
@@ -560,12 +570,13 @@ static int cmd_reg(int argc, char **argv)
  * its input/output changes in a way an older configuration site cannot handle.
  * The site refuses to configure a board whose proto is below the one it targets.
  */
-#define SOMFY_PROTO 2
+#define SOMFY_PROTO 3
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }
 static int cmd_qr(int, char **)     { printf("%s\n", app_matter_qr()); return 0; }
 static int cmd_pair(int, char **)   { app_matter_open_window(); printf("%s\n", app_matter_manual()); return 0; }
+static int cmd_mstat(int, char **)  { printf("{\"fabrics\":%d}\n", app_matter_fabric_count()); return 0; }
 static int cmd_reset(int, char **)  { printf("OK resetting\n"); app_matter_factory_reset(); return 0; }
 
 /**
@@ -589,6 +600,7 @@ static void register_console(void)
         {"export", "Dump full shade table (backup) as JSON", NULL, &cmd_export, NULL},
         {"qr",     "Print Matter QR payload",                NULL, &cmd_qr,     NULL},
         {"pair",   "Open commissioning window, print code",  NULL, &cmd_pair,   NULL},
+        {"mstat",  "Matter status (commissioned fabric count) as JSON", NULL, &cmd_mstat, NULL},
         {"reset",  "Factory-reset Matter and reboot",        NULL, &cmd_reset,  NULL},
     };
     for (size_t i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++)

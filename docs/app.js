@@ -12,7 +12,7 @@ const logEl = $("log");
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
-const REQUIRED_PROTO = 2;
+const REQUIRED_PROTO = 3;
 
 /** Append a line to the on-screen serial log. */
 function log(s) {
@@ -191,6 +191,8 @@ function waitFor(match, timeout) {
 const STEPS = 5;
 const CONNECT_STEP = 0;
 const RADIO_STEP = 1;
+const SHADES_STEP = 2;
+const MATTER_STEP = 3;
 let step = 0;
 let radioReady = false;
 let skipRadio = false;
@@ -216,6 +218,8 @@ function setStep(n) {
   $("next").hidden = step === STEPS - 1;
   gateNext();
   if (step === RADIO_STEP) loadRadio().catch((e) => log("ERR " + e.message));
+  if (step === SHADES_STEP && connected) refresh().catch((e) => log("ERR " + e.message));
+  if (step === MATTER_STEP) loadMatter().catch((e) => log("ERR " + e.message));
 }
 
 /** Gate the Next button: needs a connection, and a working radio to leave the radio step. */
@@ -642,31 +646,75 @@ async function importBackup(file) {
   await refresh();
 }
 
-/** Open the commissioning window and show the Matter code + QR payload. */
-async function getPairing() {
+let pairQr = "";
+
+/** Hide the pairing code, QR image, and payload (paired state, before asked). */
+function hidePairing() {
+  $("paircode").hidden = true;
+  $("qrimg").hidden = true;
+  $("qrpayload").hidden = true;
+  $("qrToggle").hidden = true;
+}
+
+/**
+ * Matter step: query how many fabrics the device is commissioned to and branch.
+ * Not yet paired → fetch and show the pairing code right away. Already paired →
+ * report it and offer a button to add another ecosystem (multi-admin). The QR is
+ * never shown until asked, in either case.
+ */
+async function loadMatter() {
+  hidePairing();
+  const st = $("matterStatus");
+  st.hidden = false;
+  st.textContent = t("matter.checking");
+  let fabrics = 0;
+  try { fabrics = JSON.parse(await request("mstat", (l) => l.startsWith("{"))).fabrics; }
+  catch (e) { /* treat an unresponsive board as unpaired */ }
+  const btn = $("pairBtn");
+  if (fabrics > 0) {
+    st.textContent = t("matter.paired", { n: fabrics });
+    btn.textContent = t("matter.addAnother");
+    btn.hidden = false;
+  } else {
+    st.textContent = t("matter.unpaired");
+    btn.hidden = true;
+    await showPairing();
+  }
+}
+
+/**
+ * Open a commissioning window, show the manual code, and arm the "Show QR"
+ * toggle. The QR payload is fetched now but only rendered when the user asks.
+ */
+async function showPairing() {
   const manual = await request("pair", (l) => /^\d{11,}$/.test(l.replace(/-/g, "")));
-  let qr = "";
-  try { qr = await request("qr", (l) => l.startsWith("MT:")); } catch (e) { /* payload optional */ }
   const code = $("paircode");
   code.hidden = false;
   code.textContent = manual;
+  pairQr = "";
+  try { pairQr = await request("qr", (l) => l.startsWith("MT:")); } catch (e) { /* payload optional */ }
+  $("qrToggle").hidden = !pairQr;
+}
+
+/** Render the QR image + payload on demand (from the "Show QR" toggle). */
+function renderQr() {
+  $("qrToggle").hidden = true;
   const img = $("qrimg");
-  if (qr && window.qrcode) {
+  if (pairQr && window.qrcode) {
     const q = window.qrcode(0, "M");
-    q.addData(qr);
+    q.addData(pairQr);
     q.make();
     img.src = q.createDataURL(6, 16);
     img.hidden = false;
-  } else {
-    img.hidden = true;
   }
-  $("qrpayload").textContent = qr ? t("matter.qr", { qr }) : "";
+  const pl = $("qrpayload");
+  pl.hidden = false;
+  pl.textContent = pairQr ? t("matter.qr", { qr: pairQr }) : "";
 }
 
 /* ── wiring ───────────────────────────────────────────────────────────── */
 
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
-$("refresh").addEventListener("click", () => refresh().catch((e) => log("ERR " + e.message)));
 $("discover").addEventListener("click", () => startDiscover().catch((e) => log("ERR " + e.message)));
 $("discoverDone").addEventListener("click", () => stopDiscover());
 $("addMotor").addEventListener("click", () => addMotor());
@@ -685,9 +733,9 @@ $("importFile").addEventListener("change", (e) => {
   if (e.target.files[0]) importBackup(e.target.files[0]).catch((err) => log("ERR " + err.message));
 });
 $("radioFreq").addEventListener("change", (e) => save(`freq ${e.target.value}`));
-$("radioCheck").addEventListener("click", () => loadRadio().catch((e) => log("ERR " + e.message)));
 $("radioListen").addEventListener("click", () => scanAndListen());
-$("pairBtn").addEventListener("click", () => getPairing().catch((e) => log("ERR " + e.message)));
+$("pairBtn").addEventListener("click", () => showPairing().catch((e) => log("ERR " + e.message)));
+$("qrToggle").addEventListener("click", () => renderQr());
 $("resetBtn").addEventListener("click", () => {
   if (confirm(t("confirm.reset"))) send("reset");
 });

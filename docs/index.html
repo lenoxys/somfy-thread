@@ -26,7 +26,7 @@
   <div id="disconnModal" class="modal-overlay" hidden>
     <div class="modal-card">
       <span class="spinner" data-icon="spinner"></span>
-      <p data-i18n="disconnect.lost"></p>
+      <p data-i18n-html="disconnect.lost"></p>
       <button id="reconnect" class="btn primary" data-i18n="disconnect.reconnect"></button>
     </div>
   </div>
@@ -68,7 +68,6 @@
     <div id="radioStatus" class="callout"></div>
     <div class="bar">
       <button id="radioListen" class="btn primary" data-i18n="radio.listen"></button>
-      <button id="radioCheck" class="btn small" data-i18n="radio.check"></button>
     </div>
     <div id="radioHeard" class="callout" hidden></div>
     <details class="adv">
@@ -107,7 +106,6 @@
         <tbody id="advBody"></tbody>
       </table>
     </details>
-    <div class="bar"><button id="refresh" class="btn small" data-i18n="shades.reload"></button></div>
   </section>
 
   <!-- Step 3 — Matter -->
@@ -115,10 +113,14 @@
     <h2 data-i18n="matter.title"></h2>
     <p class="muted" data-i18n="matter.intro"></p>
     <div class="callout" data-i18n="matter.help"></div>
-    <div class="bar"><button id="pairBtn" class="btn primary" data-i18n="matter.getCode"></button></div>
+    <div id="matterStatus" class="callout" hidden></div>
+    <div class="bar">
+      <button id="pairBtn" class="btn primary" hidden></button>
+      <button id="qrToggle" class="btn small" hidden data-i18n="matter.showQr"></button>
+    </div>
     <div id="paircode" class="paircode" hidden></div>
     <img id="qrimg" class="qrimg" alt="" hidden>
-    <div id="qrpayload" class="qr"></div>
+    <div id="qrpayload" class="qr" hidden></div>
   </section>
 
   <!-- Step 4 — Backup -->
