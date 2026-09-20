@@ -16,7 +16,6 @@ export default {
   "board.intro": "Somfy RTS blinds over Matter-over-Thread on an ESP32-C6 + CC1101. Use Chrome or Edge on desktop, plug the board into USB, then connect — we'll check what's on it.",
   "board.connect": "Connect board",
   "compat.warn": "This controls Somfy RTS blinds only (433 MHz). It does not support Somfy io-homecontrol — check your motors are RTS before continuing.",
-  "compat.ack": "My blinds use Somfy RTS.",
   "board.recheck": "Re-check board",
   "board.portHint": "In the browser's port list, pick <strong>USB JTAG/serial debug unit</strong> — that's the ESP32-C6's native USB. On boards with a USB-to-UART bridge it shows instead as <strong>CP210x</strong>, <strong>CP2104</strong>, or <strong>CH340</strong>. Ignore Bluetooth and audio entries. Unsure which entry it is? Click Connect once with the board unplugged to see the list, cancel, plug the board in, then click again — the new entry is your board.",
   "status.disconnected": "Disconnected",
@@ -34,6 +33,7 @@ export default {
   "detect.none": "No somfy-thread firmware detected. Pick a version and flash it.",
   "detect.outdated": "somfy-thread {ver} installed — {latest} available. ",
   "detect.current": "somfy-thread {ver} — up to date. ",
+  "detect.incompatible": "somfy-thread {ver} is too old for this configurator — update the firmware to continue. ",
   "detect.continue": "Continue to config",
   "detect.update": "Update firmware",
 

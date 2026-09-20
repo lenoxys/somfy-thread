@@ -107,10 +107,10 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 .stepper { list-style: none; display: flex; gap: .25rem; padding: 0; margin: 1.25rem 0; }
 .stepper li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .4rem;
   font-size: .78rem; color: var(--muted); position: relative; text-align: center; }
-.stepico { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px;
+.stepico { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 999px;
   background: var(--surface-alt); border: 2px solid var(--line); color: var(--muted); }
-.stepico svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
-.stepper li::after { content: ""; position: absolute; top: 1rem; left: -50%; width: 100%;
+.stepico svg { width: 1.6rem; height: 1.6rem; fill: currentColor; }
+.stepper li::after { content: ""; position: absolute; top: 1.375rem; left: -50%; width: 100%;
   height: 2px; background: var(--line); z-index: -1; }
 .stepper li:first-child::after { display: none; }
 .stepper li.active { color: var(--fg); font-weight: 700; }
@@ -141,7 +141,6 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
   padding: .75rem .9rem; margin: .75rem 0; font-size: .92rem; }
 .callout.bad { background: color-mix(in srgb, var(--danger) 12%, var(--card)); border-color: var(--danger); }
 .callout .btn { margin: .4rem .4rem 0 0; }
-.ack { display: flex; gap: .5rem; align-items: center; font-size: .92rem; margin: 0 0 .75rem; }
 
 /* tables & inputs */
 table { border-collapse: collapse; width: 100%; }

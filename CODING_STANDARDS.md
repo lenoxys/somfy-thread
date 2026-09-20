@@ -36,6 +36,12 @@ never infers internal firmware state; it asks over the contract. A behaviour the
 site needs but the contract does not expose is a gap in the contract, to be added
 deliberately on the firmware side, never guessed at in the browser.
 
+The contract is versioned. `version` reports a `proto` number
+(`SOMFY_PROTO` in `main/app_main.cpp`); the site targets a `REQUIRED_PROTO`
+(`docs/app.js`) and refuses to configure a board reporting a lower one, prompting
+an update instead. Any change to the command set — adding, removing, or altering
+a command's inputs or outputs — bumps both numbers together.
+
 `board.h` is the single source of pin truth. No GPIO number is written anywhere
 else; everything refers to the `CC1101_PIN_*` / `BOARD_*` macros.
 

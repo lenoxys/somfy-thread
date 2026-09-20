@@ -9,6 +9,11 @@ import { t, applyI18n } from "./i18n.js";
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
 
+// Serial console contract version this site targets. Must match the firmware's
+// SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
+// and prompted to update. Bump both together when the command set changes.
+const REQUIRED_PROTO = 1;
+
 /** Append a line to the on-screen serial log. */
 function log(s) {
   logEl.textContent += s + "\n";
@@ -516,23 +521,34 @@ async function releasePort() {
 }
 
 /**
- * Ask the board for its firmware id/version and branch the wizard: up to date →
- * offer Continue; older than the latest release → offer Update or Continue;
- * unrecognized/no reply → reveal the flasher. Compare by tag equality only.
+ * Ask the board for its firmware id/version and branch the wizard: contract
+ * (proto) too old for this site → require an update, no Continue; up to date →
+ * offer Continue; older release tag → offer Update or Continue; unrecognized/no
+ * reply → reveal the flasher. Tag comparison is equality only; the proto number
+ * is the real compatibility gate.
  */
 async function detect() {
   const det = $("detect");
   det.hidden = false;
   det.textContent = t("detect.checking");
-  let ver = null;
+  let ver = null, proto = 0;
   try {
     const line = await request("version", (l) => l.startsWith("somfy-thread "), 2500);
-    ver = line.slice("somfy-thread ".length).trim();
+    const m = line.match(/^somfy-thread (\S+)(?: proto (\d+))?/);
+    if (m) { ver = m[1]; proto = m[2] ? parseInt(m[2], 10) : 0; }
   } catch (e) { /* not a somfy-thread board (or blank) */ }
 
   if (!ver) {
     det.textContent = t("detect.none");
     await beginFlash();
+    return;
+  }
+
+  if (proto < REQUIRED_PROTO) {
+    det.textContent = "";
+    det.append(t("detect.incompatible", { ver }));
+    det.append(mkBtn(t("detect.update"), () => beginFlash(), "primary small"));
+    $("next").disabled = true;
     return;
   }
 
@@ -616,7 +632,6 @@ async function getPairing() {
 
 /* ── wiring ───────────────────────────────────────────────────────────── */
 
-$("ack").addEventListener("change", (e) => { $("connect").disabled = !e.target.checked; });
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 $("refresh").addEventListener("click", () => refresh().catch((e) => log("ERR " + e.message)));
 $("discover").addEventListener("click", () => startDiscover().catch((e) => log("ERR " + e.message)));

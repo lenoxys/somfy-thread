@@ -552,7 +552,14 @@ static int cmd_reg(int argc, char **argv)
     return 0;
 }
 
-static int cmd_version(int, char **) { printf("somfy-thread %s\n", esp_app_get_description()->version); return 0; }
+/**
+ * Serial console contract version. Bump whenever a command is added, removed, or
+ * its input/output changes in a way an older configuration site cannot handle.
+ * The site refuses to configure a board whose proto is below the one it targets.
+ */
+#define SOMFY_PROTO 1
+
+static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }
 static int cmd_qr(int, char **)     { printf("%s\n", app_matter_qr()); return 0; }
 static int cmd_pair(int, char **)   { app_matter_open_window(); printf("%s\n", app_matter_manual()); return 0; }
