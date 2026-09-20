@@ -129,6 +129,7 @@ export default {
   "matter.unpaired": "Not added yet — scan or enter this code in your Matter app or hub.",
   "matter.paired": "Already added to {n} Matter ecosystem(s). To add it to another app or hub, open a new pairing window.",
   "matter.addAnother": "Add to another ecosystem",
+  "matter.reset": "Reset pairing",
   "matter.showQr": "Show QR code",
   "matter.qr": "QR payload: {qr}",
 
@@ -144,7 +145,10 @@ export default {
   "log.title": "Serial log",
 
   "alert.webserial": "Web Serial needs Chrome or Edge on desktop.",
-  "confirm.reset": "Factory-reset Matter and reboot the device?",
+  "confirm.cancel": "Cancel",
+  "confirm.proceed": "Reset",
+  "confirm.resetMatter": "Reset Matter and Thread? The device leaves every smart-home hub and its Thread network, then reboots ready to pair again. Your shades and rolling codes are kept.",
+  "confirm.factory": "Factory-reset the device? This erases everything — all shades, addresses, rolling codes, radio settings, and the Matter + Thread pairing. This cannot be undone.",
   "confirm.remove": "Remove shade “{name}”? It will disappear from your smart home.",
 
   "disconnect.lost": "Lost the connection to the board.<br>(unplugged?)",

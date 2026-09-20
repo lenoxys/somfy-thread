@@ -98,6 +98,13 @@ shade_t *blind_store_get(int idx);
 void     blind_store_save(void);
 
 /**
+ * Erase the whole Somfy NVS namespace (shades, links, radio settings) for a full
+ * factory reset. Matter/Thread state lives in separate CHIP namespaces and is
+ * cleared by esp_matter::factory_reset(), not here.
+ */
+void     blind_store_factory_erase(void);
+
+/**
  * Increment shade `idx`'s rolling code, persist immediately, and return it.
  * @return The new rolling code, or 0 if `idx` is out of range.
  */

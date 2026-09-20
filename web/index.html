@@ -141,6 +141,7 @@
     <div class="bar">
       <button id="pairBtn" class="btn primary" hidden></button>
       <button id="qrToggle" class="btn small" hidden data-i18n="matter.showQr"></button>
+      <button id="matterReset" class="btn danger small" data-i18n="matter.reset"></button>
     </div>
     <div id="paircode" class="paircode" hidden></div>
     <img id="qrimg" class="qrimg" alt="" hidden>
@@ -170,6 +171,16 @@
     <div id="log"></div>
   </details>
 </main>
+
+<div id="confirmModal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <p id="confirmMsg"></p>
+    <div class="bar">
+      <button id="confirmCancel" class="btn" data-i18n="confirm.cancel"></button>
+      <button id="confirmOk" class="btn danger" data-i18n="confirm.proceed"></button>
+    </div>
+  </div>
+</div>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 

@@ -12,7 +12,7 @@ const logEl = $("log");
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
-const REQUIRED_PROTO = 7;
+const REQUIRED_PROTO = 8;
 
 /** Append a line to the on-screen serial log. */
 function log(s) {
@@ -381,6 +381,30 @@ function toast(msg, ok = true) {
 }
 
 /**
+ * Show the confirmation modal with `msg` and resolve true (proceed) or false
+ * (cancel). Used for the destructive reset actions instead of a native dialog.
+ */
+function askConfirm(msg, okLabel = t("confirm.proceed")) {
+  return new Promise((resolve) => {
+    const modal = $("confirmModal");
+    $("confirmMsg").textContent = msg;
+    $("confirmOk").textContent = okLabel;
+    modal.hidden = false;
+    const ok = $("confirmOk"), cancel = $("confirmCancel");
+    const done = (v) => {
+      modal.hidden = true;
+      ok.removeEventListener("click", onOk);
+      cancel.removeEventListener("click", onCancel);
+      resolve(v);
+    };
+    const onOk = () => done(true);
+    const onCancel = () => done(false);
+    ok.addEventListener("click", onOk);
+    cancel.addEventListener("click", onCancel);
+  });
+}
+
+/**
  * Run a mutating command (add/remove) and reload the list, since it changes the
  * set of slots. Errors go to the log.
  */
@@ -409,8 +433,9 @@ function renderManage() {
     tr.append(posTd(s));
     tr.append(motorTd(s.idx));
     const rm = document.createElement("td");
-    rm.append(mkBtn(t("shades.remove"), () => {
-      if (confirm(t("confirm.remove", { name: s.name || s.idx }))) mutate(`remove ${s.idx}`);
+    rm.append(mkBtn(t("shades.remove"), async () => {
+      if (await askConfirm(t("confirm.remove", { name: s.name || s.idx }), t("shades.remove")))
+        mutate(`remove ${s.idx}`);
     }, "danger small"));
     tr.append(rm);
     tb.append(tr, detail);
@@ -434,7 +459,7 @@ function shadeDetailRow(s) {
   const grid = document.createElement("div");
   grid.className = "detailgrid";
   grid.append(
-    field("shades.col.name", textInput(s.name, (v) => save(`name ${s.idx} ${v}`))),
+    field("shades.col.name", textInput(s.name, (v) => save(`name ${s.idx} ${v}`), 15)),
     field("shades.col.address", textInput(String(s.addr), (v) => save(`addr ${s.idx} ${v}`))),
     field("shades.col.rolling", textInput(String(s.rolling), (v) => save(`roll ${s.idx} ${v}`))),
     field("shades.col.linked", linkControl(s)),
@@ -460,11 +485,12 @@ function field(labelKey, control) {
 }
 
 /** A committing text input (returns the bare element, for use inside a field). */
-function textInput(val, onCommit) {
+function textInput(val, onCommit, maxLen) {
   const inp = document.createElement("input");
   inp.type = "text";
   inp.className = "num";
   inp.value = val;
+  if (maxLen) inp.maxLength = maxLen;
   inp.addEventListener("change", () => onCommit(inp.value.trim()));
   return inp;
 }
@@ -808,6 +834,7 @@ function addDiscoverCard(addr, code) {
   const name = document.createElement("input");
   name.type = "text";
   name.className = "name";
+  name.maxLength = 15;
   name.placeholder = t("shades.namePlaceholder");
   const add = mkBtn(t("shades.addHeard"), () => {
     mutate(`add ${addr} ${code + 1} ${name.value.trim()}`);
@@ -1140,8 +1167,11 @@ $("radioRxbw").addEventListener("change", (e) => save(`rxbw ${e.target.value}`))
 $("radioScan").addEventListener("click", () => scanBand().catch((e) => log("ERR " + e.message)));
 $("pairBtn").addEventListener("click", () => showPairing().catch((e) => log("ERR " + e.message)));
 $("qrToggle").addEventListener("click", () => renderQr());
-$("resetBtn").addEventListener("click", () => {
-  if (confirm(t("confirm.reset"))) send("reset");
+$("matterReset").addEventListener("click", async () => {
+  if (await askConfirm(t("confirm.resetMatter"))) send("reset");
+});
+$("resetBtn").addEventListener("click", async () => {
+  if (await askConfirm(t("confirm.factory"))) send("factory");
 });
 
 const iconCache = {};

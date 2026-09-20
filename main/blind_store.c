@@ -44,6 +44,19 @@ static void save_links(void)
 }
 
 /**
+ * Erase the whole Somfy NVS namespace (shades, links, radio settings). The next
+ * boot re-inits it empty. Matter/Thread state is cleared separately.
+ */
+void blind_store_factory_erase(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_erase_all(h);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+/**
  * Count the slots in use (addr != 0), for logging only.
  */
 static int used_count(void)

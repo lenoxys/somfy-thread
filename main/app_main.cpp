@@ -43,6 +43,7 @@ extern "C" {
 #include "somfy_frame.h"
 #include "blind_store.h"
 #include "wc_motion.h"
+#include "json_escape.h"
 }
 
 static const char *TAG = "somfy_thread";
@@ -530,23 +531,20 @@ extern "C" int app_matter_fabric_count(void)
     return chip::Server::GetInstance().GetFabricTable().FabricCount();
 }
 
-static void factory_reset_work(intptr_t)
+static void factory_reset_work(intptr_t full)
 {
-    auto &ft = chip::Server::GetInstance().GetFabricTable();
-    chip::FabricIndex idxs[CHIP_CONFIG_MAX_FABRICS];
-    uint8_t n = 0;
-    for (const auto &fb : ft)
-        if (n < CHIP_CONFIG_MAX_FABRICS) idxs[n++] = fb.GetFabricIndex();
-    for (uint8_t i = 0; i < n; i++) ft.Delete(idxs[i]);
-    esp_restart();
+    if (full) blind_store_factory_erase();
+    esp_matter::factory_reset();
 }
 
 /**
- * Delete every Matter fabric and reboot, scheduled on the Matter thread.
+ * Reset Matter + Thread and reboot, scheduled on the Matter thread. When `full`,
+ * also wipe the Somfy store (shades, links, radio) first — esp_matter's reset
+ * only clears CHIP's own namespaces, leaving ours intact otherwise.
  */
-extern "C" void app_matter_factory_reset(void)
+extern "C" void app_matter_factory_reset(int full)
 {
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(factory_reset_work, 0);
+    chip::DeviceLayer::PlatformMgr().ScheduleWork(factory_reset_work, full);
 }
 
 /**
@@ -573,8 +571,10 @@ static void print_shades_json(void)
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         if (!blind_store_used(i)) continue;
         shade_t *s = blind_store_get(i);
+        char nm[sizeof(s->name) * 6 + 1];
+        json_escape(s->name, nm, sizeof(nm));
         printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s,\"remote\":%s,\"link\":\"%06lX\",\"up_ms\":%u,\"down_ms\":%u,\"my\":%d,\"invert\":%s,\"up_lag\":%u,\"down_lag\":%u,\"pos\":%u}",
-               first ? "" : ",", i, s->name, (unsigned long)s->addr, s->rolling,
+               first ? "" : ",", i, nm, (unsigned long)s->addr, s->rolling,
                s->enabled ? "true" : "false", s->remote ? "true" : "false",
                (unsigned long)blind_store_link_addr(i),
                s->up_ms, s->down_ms, s->my_pct, s->invert ? "true" : "false",
@@ -855,14 +855,16 @@ static int cmd_reg(int argc, char **argv)
  * its input/output changes in a way an older configuration site cannot handle.
  * The site refuses to configure a board whose proto is below the one it targets.
  */
-#define SOMFY_PROTO 7
+#define SOMFY_PROTO 8
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }
 static int cmd_qr(int, char **)     { printf("%s\n", app_matter_qr()); return 0; }
 static int cmd_pair(int, char **)   { app_matter_open_window(); printf("%s\n", app_matter_manual()); return 0; }
 static int cmd_mstat(int, char **)  { printf("{\"fabrics\":%d}\n", app_matter_fabric_count()); return 0; }
-static int cmd_reset(int, char **)  { printf("OK resetting\n"); app_matter_factory_reset(); return 0; }
+static int cmd_reset(int, char **)   { printf("OK resetting\n"); app_matter_factory_reset(0); return 0; }
+static int cmd_factory(int, char **) { printf("OK factory\n");   app_matter_factory_reset(1); return 0; }
+static int cmd_reboot(int, char **)  { printf("OK rebooting\n"); esp_restart(); return 0; }
 
 /**
  * Register the serial console commands that form the WebSerial contract.
@@ -891,7 +893,9 @@ static void register_console(void)
         {"qr",     "Print Matter QR payload",                NULL, &cmd_qr,     NULL},
         {"pair",   "Open commissioning window, print code",  NULL, &cmd_pair,   NULL},
         {"mstat",  "Matter status (commissioned fabric count) as JSON", NULL, &cmd_mstat, NULL},
-        {"reset",  "Factory-reset Matter and reboot",        NULL, &cmd_reset,  NULL},
+        {"reset",  "Reset Matter+Thread (keeps shades) and reboot", NULL, &cmd_reset,  NULL},
+        {"factory","Full factory reset: erase shades + Matter+Thread, reboot", NULL, &cmd_factory, NULL},
+        {"reboot", "Reboot the device (no data change)",     NULL, &cmd_reboot, NULL},
     };
     for (size_t i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++)
         esp_console_cmd_register(&cmds[i]);
