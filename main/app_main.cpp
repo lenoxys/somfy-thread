@@ -370,12 +370,20 @@ static SomfyWCDelegate s_wc_delegates[BLIND_MAX_COUNT];
  * Node device type and a Bridged Device Basic Information NodeLabel set to the
  * shade's name, so a bridge-aware controller (the Aggregator on endpoint 1)
  * shows each cover under its own name instead of the shared product name.
- * @return ESP_OK, or the error from window_covering_device::add / bridged_node::add.
+ * Creates the Descriptor cluster explicitly (the plain endpoint::create path
+ * skips it, unlike the device-type create/resume helpers) so the endpoint
+ * exposes its DeviceTypeList — without it a controller reads no device types,
+ * never sees the Bridged Node type, and groups every cover under the root
+ * device with the shared product name.
+ * @return ESP_OK, or the error from the descriptor / window covering / bridged
+ *         node cluster setup.
  */
 static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
 {
     shade_t *s = blind_store_get(idx);
     uint16_t pos = s ? s->pos : 0;
+    cluster::descriptor::config_t desc_cfg;
+    if (!cluster::descriptor::create(ep, &desc_cfg, CLUSTER_FLAG_SERVER)) return ESP_FAIL;
     window_covering_device::config_t wc;
     wc.window_covering.type = 0x00;
     wc.window_covering.delegate = &s_wc_delegates[idx];
@@ -1024,7 +1032,13 @@ static int cmd_dump(int, char **)
         esp_matter_attr_val_t val;
         if (a && attribute::get_val(a, &val) == ESP_OK && val.val.a.b)
             snprintf(label, sizeof(label), "%.*s", val.val.a.s, (char *)val.val.a.b);
-        printf("ep=%u idx=%d label=%s\n", s_wc_ep_ids[i], i, label);
+        char dts[48] = "";
+        uint8_t dtc = 0;
+        uint32_t *ids = s_wc_eps[i] ? endpoint::get_device_type_ids(s_wc_eps[i], &dtc) : NULL;
+        for (uint8_t k = 0; ids && k < dtc; k++)
+            snprintf(dts + strlen(dts), sizeof(dts) - strlen(dts), "%s0x%04lx", k ? "," : "", (unsigned long)ids[k]);
+        bool desc = s_wc_eps[i] && cluster::get(s_wc_eps[i], 0x001D) != NULL;
+        printf("ep=%u idx=%d label=%s devtypes=[%s] descriptor=%d\n", s_wc_ep_ids[i], i, label, dts, desc);
     }
     printf("OK\n");
     return 0;
