@@ -1155,6 +1155,14 @@ function stepperNav(e) {
 }
 $("stepper").addEventListener("click", stepperNav);
 $("stepper").addEventListener("keydown", stepperNav);
+$("dlLog").addEventListener("click", () => {
+  const blob = new Blob([logEl.textContent], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "somfy-thread-serial.log";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
 $("import").addEventListener("click", () => $("importFile").click());
 $("importFile").addEventListener("change", (e) => {

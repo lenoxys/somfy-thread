@@ -143,6 +143,7 @@ export default {
   "nav.back": "Back",
   "nav.next": "Next",
   "log.title": "Serial log",
+  "log.download": "Download log",
 
   "alert.webserial": "Web Serial needs Chrome or Edge on desktop.",
   "confirm.cancel": "Cancel",
