@@ -132,6 +132,8 @@ export default {
   "matter.reset": "Reset pairing",
   "matter.showQr": "Show QR code",
   "matter.qr": "QR payload: {qr}",
+  "matter.failed": "Pairing failed. The device joined Thread, but your hub aborted adding it — usually the hub rejecting the device's attestation certificate, or the attempt timing out. Try again; if it keeps failing, check your hub allows uncertified Matter devices and look at its logs for the reason.",
+  "matter.failedToast": "Pairing failed on the hub",
 
   "backup.title": "Back up your setup",
   "backup.intro": "Save a JSON backup (addresses + rolling codes) to your disk. Import it later to restore, or to migrate to a new device.",
@@ -152,7 +154,7 @@ export default {
   "confirm.factory": "Factory-reset the device? This erases everything — all shades, addresses, rolling codes, radio settings, and the Matter + Thread pairing. This cannot be undone.",
   "confirm.remove": "Remove shade “{name}”? It will disappear from your smart home.",
 
-  "disconnect.lost": "Lost the connection to the board.<br>(unplugged?)",
+  "disconnect.lost": "Lost the connection to the board.<br />(unplugged?)",
   "disconnect.reconnect": "Reconnect",
 
   "footer.disclaimer": "An independent open-source project, not affiliated with, endorsed by, or sponsored by Somfy. Somfy and RTS are trademarks of their respective owner.",

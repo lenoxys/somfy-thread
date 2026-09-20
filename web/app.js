@@ -141,7 +141,7 @@ async function readLoop() {
       while ((nl = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, nl).replace(/\r$/, "").trim();
         buf = buf.slice(nl + 1);
-        if (line) { log(line); dispatch(line); }
+        if (line) { log(line); dispatch(line); watchMatter(line); }
       }
     }
   } catch (e) {
@@ -1073,6 +1073,21 @@ function hidePairing() {
 }
 
 /**
+ * Passively watch the board's CHIP output while on the Matter step and flag a
+ * failed pairing. Commissioning runs on the hub, so the outcome only appears in
+ * the serial stream, never in a command reply — a "Commissioning failed" line
+ * means the hub aborted (it refused the device, or the attempt timed out).
+ */
+function watchMatter(line) {
+  if (step !== MATTER_STEP || !line.includes("Commissioning failed")) return;
+  const st = $("matterStatus");
+  st.hidden = false;
+  st.classList.add("bad");
+  st.textContent = t("matter.failed");
+  toast(t("matter.failedToast"), false);
+}
+
+/**
  * Matter step: query how many fabrics the device is commissioned to and branch.
  * Not yet paired → fetch and show the pairing code right away. Already paired →
  * report it and offer a button to add another ecosystem (multi-admin). The QR is
@@ -1082,6 +1097,7 @@ async function loadMatter() {
   hidePairing();
   const st = $("matterStatus");
   st.hidden = false;
+  st.classList.remove("bad");
   st.textContent = t("matter.checking");
   let fabrics = 0;
   try { fabrics = JSON.parse(await request("mstat", (l) => l.startsWith("{"))).fabrics; }
