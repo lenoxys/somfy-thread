@@ -18,9 +18,14 @@ extern "C" {
 #define CC1101_FREQ2    0x0D
 #define CC1101_FREQ1    0x0E
 #define CC1101_FREQ0    0x0F
+#define CC1101_MDMCFG4  0x10
 #define CC1101_MDMCFG2  0x12
 #define CC1101_FREND0   0x22
 #define CC1101_PATABLE  0x3E
+#define CC1101_RSSI     0x34
+
+#define CC1101_TX_POWER_COUNT 8
+#define CC1101_RXBW_COUNT     5
 
 #define CC1101_SRES     0x30
 #define CC1101_SCAL     0x33
@@ -53,6 +58,30 @@ void  cc1101_set_frequency(cc1101_t *dev, float freq_mhz);
  * @return The current carrier frequency in MHz.
  */
 float cc1101_get_frequency(const cc1101_t *dev);
+
+/**
+ * Set the OOK TX level by index into cc1101_tx_power_dbm[] (out-of-range clamps
+ * to the top level). Writes PATABLE[1]; index 0 (carrier off) is untouched.
+ */
+void cc1101_set_power(cc1101_t *dev, uint8_t idx);
+
+/**
+ * Set the RX bandwidth by index into cc1101_rxbw_khz[] (out-of-range falls back
+ * to the default). Rewrites MDMCFG4, preserving the data-rate exponent nibble.
+ */
+void cc1101_set_rxbw(cc1101_t *dev, uint8_t idx);
+
+/**
+ * @return The current received signal strength in dBm. Meaningful only when the
+ *         chip is in RX and has settled (a few hundred µs after entering RX).
+ */
+int cc1101_rssi_dbm(cc1101_t *dev);
+
+/** Output level in dBm per TX-power index (E07/CC1101 433 MHz, +10 dBm max). */
+extern const int8_t cc1101_tx_power_dbm[CC1101_TX_POWER_COUNT];
+
+/** RX bandwidth in kHz per RX-bandwidth index. */
+extern const uint16_t cc1101_rxbw_khz[CC1101_RXBW_COUNT];
 
 /**
  * Enter TX. In async-serial mode the waveform on GDO0 keys the carrier.

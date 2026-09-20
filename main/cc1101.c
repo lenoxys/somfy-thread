@@ -131,13 +131,53 @@ static void set_freq_regs(cc1101_t *dev, float freq_mhz)
 }
 
 /**
- * Load the OOK power table: index 0 is carrier off, index 1 is the on level
- * (+10 dBm at 433 MHz).
+ * PATABLE "on" byte per TX-power index for the E07 (CC1101) at 433 MHz, from the
+ * datasheet output-power table (SWRS061; +10 dBm is this module's ceiling).
+ */
+static const uint8_t pa_on[CC1101_TX_POWER_COUNT] = {0x12, 0x0E, 0x1D, 0x34, 0x60, 0x84, 0xC8, 0xC0};
+const int8_t cc1101_tx_power_dbm[CC1101_TX_POWER_COUNT] = {-30, -20, -15, -10, 0, 5, 7, 10};
+
+/**
+ * RX bandwidth presets as the MDMCFG4 high nibble (CHANBW_E<<2 | CHANBW_M).
+ * BW = f_xosc / (8·(4+CHANBW_M)·2^CHANBW_E) with f_xosc = 26 MHz; the low nibble
+ * (DRATE_E) is inert for OOK RX and kept at the init value 0x0A.
+ */
+static const uint8_t rxbw_hi[CC1101_RXBW_COUNT] = {0xF, 0xC, 0x8, 0x4, 0x0};
+const uint16_t cc1101_rxbw_khz[CC1101_RXBW_COUNT] = {58, 102, 203, 406, 813};
+#define MDMCFG4_DRATE_E 0x0A
+#define RXBW_DEFAULT_IDX 2
+
+void cc1101_set_power(cc1101_t *dev, uint8_t idx)
+{
+    if (idx >= CC1101_TX_POWER_COUNT) idx = CC1101_TX_POWER_COUNT - 1;
+    uint8_t table[8] = { 0x00, pa_on[idx], 0, 0, 0, 0, 0, 0 };
+    spi_write(dev, CC1101_PATABLE | 0x40, table, 8);
+}
+
+void cc1101_set_rxbw(cc1101_t *dev, uint8_t idx)
+{
+    if (idx >= CC1101_RXBW_COUNT) idx = RXBW_DEFAULT_IDX;
+    cc1101_write_reg(dev, CC1101_MDMCFG4, (uint8_t)(rxbw_hi[idx] << 4) | MDMCFG4_DRATE_E);
+}
+
+/**
+ * Read the RSSI status register and convert to dBm (SWRS061 17.3): a 2's-complement
+ * half-dB value offset by the 74 dB RSSI offset for the 433 MHz band.
+ */
+int cc1101_rssi_dbm(cc1101_t *dev)
+{
+    uint8_t raw = spi_read_status(dev, CC1101_RSSI);
+    int r = raw >= 128 ? (int)raw - 256 : (int)raw;
+    return r / 2 - 74;
+}
+
+/**
+ * Load the OOK power table at the default level (+10 dBm at 433 MHz); index 0
+ * stays carrier-off. Persisted power/bandwidth are applied over this by the app.
  */
 static void set_pa_table_ook(cc1101_t *dev)
 {
-    uint8_t table[8] = { 0x00, 0xC0, 0, 0, 0, 0, 0, 0 };
-    spi_write(dev, CC1101_PATABLE | 0x40, table, 8);
+    cc1101_set_power(dev, CC1101_TX_POWER_COUNT - 1);
 }
 
 /**

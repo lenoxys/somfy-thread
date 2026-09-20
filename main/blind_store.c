@@ -12,6 +12,8 @@ static const char *TAG = "blind_store";
 #define NVS_KEY  "shades"
 #define NVS_FREQ "freq"
 #define NVS_LINK "links"
+#define NVS_POWER "power"
+#define NVS_RXBW  "rxbw"
 
 /** One monitored physical remote per shade (RX-only; 0 = none). */
 typedef struct {
@@ -22,6 +24,8 @@ typedef struct {
 static shade_t s_shades[BLIND_MAX_COUNT];
 static link_t  s_links[BLIND_MAX_COUNT];
 static float   s_freq_mhz = BOARD_DEFAULT_FREQ_MHZ;
+static uint8_t s_tx_power  = 7;  /* +10 dBm: top index of the CC1101 power table */
+static uint8_t s_rxbw      = 2;  /* ~203 kHz: matches the init MDMCFG4 = 0x8A */
 
 /**
  * Persist the linked-remote table to its own NVS blob, independent of the shade
@@ -69,6 +73,8 @@ void blind_store_init(void)
         e = nvs_get_blob(h, NVS_KEY, s_shades, &len);
         size_t flen = sizeof(s_freq_mhz);
         nvs_get_blob(h, NVS_FREQ, &s_freq_mhz, &flen);
+        nvs_get_u8(h, NVS_POWER, &s_tx_power);
+        nvs_get_u8(h, NVS_RXBW, &s_rxbw);
         size_t llen = sizeof(s_links);
         if (nvs_get_blob(h, NVS_LINK, s_links, &llen) != ESP_OK || llen != sizeof(s_links))
             memset(s_links, 0, sizeof(s_links));
@@ -211,6 +217,30 @@ void blind_store_set_freq(float mhz)
         return;
     }
     nvs_set_blob(h, NVS_FREQ, &s_freq_mhz, sizeof(s_freq_mhz));
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+uint8_t blind_store_tx_power(void) { return s_tx_power; }
+
+void blind_store_set_tx_power(uint8_t idx)
+{
+    s_tx_power = idx;
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_u8(h, NVS_POWER, idx);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
+uint8_t blind_store_rxbw(void) { return s_rxbw; }
+
+void blind_store_set_rxbw(uint8_t idx)
+{
+    s_rxbw = idx;
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_u8(h, NVS_RXBW, idx);
     nvs_commit(h);
     nvs_close(h);
 }

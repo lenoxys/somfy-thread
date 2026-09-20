@@ -80,6 +80,18 @@
         <input id="radioFreq" type="number" step="0.01" min="433.05" max="434.79">
       </label>
       <p class="muted" data-i18n="radio.freqHelp"></p>
+      <label class="advrow"><span data-i18n="radio.power"></span>
+        <select id="radioPower"></select>
+      </label>
+      <label class="advrow"><span data-i18n="radio.rxbw"></span>
+        <select id="radioRxbw"></select>
+      </label>
+      <p class="muted" data-i18n="radio.tuneHelp"></p>
+      <div class="bar">
+        <button id="radioScan" type="button" class="btn small" data-i18n="radio.scan"></button>
+        <span id="radioRssi" class="muted"></span>
+      </div>
+      <table id="radioScanOut" hidden><tbody></tbody></table>
     </details>
   </section>
 
@@ -113,23 +125,8 @@
       <tbody id="manageBody"></tbody>
     </table>
     <p id="shadeEmpty" class="muted" data-i18n="shades.empty"></p>
+    <p class="muted" data-i18n="shades.rowHint"></p>
     <div class="callout" data-i18n-html="shades.progHelp"></div>
-    <details class="adv">
-      <summary data-i18n="shades.advTitle"></summary>
-      <p class="muted" data-i18n="shades.advHelp"></p>
-      <table>
-        <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.address"></th><th data-i18n="shades.col.rolling"></th><th data-i18n="shades.col.linked"></th><th></th></tr></thead>
-        <tbody id="advBody"></tbody>
-      </table>
-    </details>
-    <details class="adv">
-      <summary data-i18n="pos.advTitle"></summary>
-      <p class="muted" data-i18n="pos.advHelp"></p>
-      <table>
-        <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="pos.col.up"></th><th data-i18n="pos.col.upLag"></th><th data-i18n="pos.col.down"></th><th data-i18n="pos.col.downLag"></th><th data-i18n="pos.col.my"></th><th data-i18n="pos.col.invert"></th></tr></thead>
-        <tbody id="posBody"></tbody>
-      </table>
-    </details>
   </section>
 
   <!-- Step 3 — Matter -->

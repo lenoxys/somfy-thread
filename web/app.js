@@ -12,7 +12,7 @@ const logEl = $("log");
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
-const REQUIRED_PROTO = 6;
+const REQUIRED_PROTO = 7;
 
 /** Append a line to the on-screen serial log. */
 function log(s) {
@@ -173,6 +173,9 @@ function request(cmd, match, timeout = 3000) {
   });
 }
 
+/** Resolve after ms — a plain delay for letting the radio settle between steps. */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 /** Wait for an unsolicited line matching `match` (no command sent), e.g. an [RX] frame. */
 function waitFor(match, timeout) {
   return new Promise((resolve, reject) => {
@@ -243,10 +246,66 @@ async function loadRadio() {
   const st = JSON.parse(line);
   radioReady = !!st.rf;
   $("radioFreq").value = Number(st.freq).toFixed(3);
+  fillRadioOpts(st);
   const el = $("radioStatus");
   el.textContent = radioReady ? t("radio.ok") : t("radio.absent");
   el.classList.toggle("bad", !radioReady);
   gateNext();
+}
+
+/** Populate the TX-power / RX-bandwidth selects and the RSSI readout from radio JSON. */
+function fillRadioOpts(st) {
+  const pow = $("radioPower");
+  if (Array.isArray(st.power_opts)) {
+    pow.innerHTML = "";
+    st.power_opts.forEach((dbm, i) => pow.append(new Option(`${dbm} dBm`, i)));
+  }
+  if (st.power != null) pow.value = st.power;
+  const bw = $("radioRxbw");
+  if (Array.isArray(st.rxbw_opts)) {
+    bw.innerHTML = "";
+    st.rxbw_opts.forEach((khz, i) => bw.append(new Option(`${khz} kHz`, i)));
+  }
+  if (st.rxbw != null) bw.value = st.rxbw;
+  $("radioRssi").textContent = st.rssi != null ? t("radio.rssi", { dbm: st.rssi }) : "";
+}
+
+/**
+ * Sweep the allowed band, sampling RSSI at each step, and list frequency → signal
+ * so an advanced user can pick a clean-ish carrier. Passive (RX only, no transmit);
+ * restores the configured frequency when done. A row click adopts that frequency.
+ */
+async function scanBand() {
+  if (scanning) return;
+  scanning = true;
+  const out = $("radioScanOut");
+  const body = out.querySelector("tbody");
+  body.innerHTML = "";
+  out.hidden = false;
+  const btn = $("radioScan");
+  btn.disabled = true;
+  const prev = $("radioFreq").value;
+  try {
+    for (let f = 433.05; f <= 434.79; f += 0.1) {
+      const fs = f.toFixed(2);
+      await send(`freq ${fs}`);
+      await sleep(400);
+      const st = JSON.parse(await request("radio", (l) => l.startsWith("{")));
+      const tr = document.createElement("tr");
+      const fc = document.createElement("td");
+      fc.textContent = `${fs} MHz`;
+      const rc = document.createElement("td");
+      rc.textContent = st.rssi != null ? `${st.rssi} dBm` : "—";
+      tr.append(fc, rc);
+      tr.style.cursor = "pointer";
+      tr.addEventListener("click", () => { save(`freq ${fs}`); $("radioFreq").value = fs; });
+      body.append(tr);
+    }
+  } finally {
+    await send(`freq ${prev}`);
+    btn.disabled = false;
+    scanning = false;
+  }
 }
 
 // Carrier candidates to sweep, nominal 433.42 first then out to the crystal-drift
@@ -311,24 +370,22 @@ function mutate(cmd) {
 }
 
 /**
- * Shades step: the primary list of configured shades. One row per shade with an
- * editable name, an On switch (exposure over Thread), motor controls, and a
- * Remove button. Rows switched off are greyed. Address and rolling code are not
- * shown here — they live in the Advanced (backup/restore) table below.
+ * Shades step: the primary list of configured shades. One row per shade with a
+ * name (click to expand its settings), an On switch (exposure over Thread), the
+ * last position, motor controls, and Remove. Each row is followed by a hidden
+ * detail row holding that shade's full settings — address, rolling, linked remote,
+ * travel times, favourite, invert — so nothing lives in a separate menu.
  */
 function renderManage() {
   const tb = $("manageBody");
-  const adv = $("advBody");
-  const pos = $("posBody");
   tb.textContent = "";
-  adv.textContent = "";
-  pos.textContent = "";
   $("shadeTable").hidden = shades.length === 0;
   $("shadeEmpty").hidden = shades.length !== 0;
   for (const s of shades) {
     const tr = document.createElement("tr");
     tr.classList.toggle("disabled", !s.on);
-    tr.append(nameTd(s));
+    const detail = shadeDetailRow(s);
+    tr.append(nameTd(s, detail));
     tr.append(switchTd(s.on, (on) => save(`on ${s.idx} ${on ? 1 : 0}`)));
     tr.append(posTd(s));
     tr.append(motorTd(s.idx));
@@ -337,28 +394,63 @@ function renderManage() {
       if (confirm(t("confirm.remove", { name: s.name || s.idx }))) mutate(`remove ${s.idx}`);
     }, "danger small"));
     tr.append(rm);
-    tb.append(tr);
-
-    const ar = document.createElement("tr");
-    ar.append(td(s.name || String(s.idx)));
-    ar.append(inputTd("num", s.addr, (v) => save(`addr ${s.idx} ${v}`)));
-    ar.append(inputTd("num", String(s.rolling), (v) => save(`roll ${s.idx} ${v}`)));
-    ar.append(linkTd(s));
-    const progTd = document.createElement("td");
-    progTd.append(mkBtn(t("motor.prog"), () => send(`tx ${s.idx} prog`), "small"));
-    ar.append(progTd);
-    adv.append(ar);
-
-    const pr = document.createElement("tr");
-    pr.append(td(s.name || String(s.idx)));
-    pr.append(msTd(s, "up_ms"));
-    pr.append(msTd(s, "up_lag"));
-    pr.append(msTd(s, "down_ms"));
-    pr.append(msTd(s, "down_lag"));
-    pr.append(myTd(s));
-    pr.append(switchTd(!!s.invert, (on) => savePos(s, { invert: on })));
-    pos.append(pr);
+    tb.append(tr, detail);
   }
+}
+
+/**
+ * The per-shade settings row, hidden until its name is clicked. Fields wrap in a
+ * responsive grid so the panel fits any width. `pos` fields go through savePos()
+ * (one `pos` command carries them all); the rest are independent setters.
+ */
+function shadeDetailRow(s) {
+  const row = document.createElement("tr");
+  row.className = "detailrow";
+  row.hidden = true;
+  const cell = document.createElement("td");
+  cell.colSpan = 5;
+  const help = document.createElement("p");
+  help.className = "muted";
+  help.textContent = t("pos.advHelp");
+  const grid = document.createElement("div");
+  grid.className = "detailgrid";
+  grid.append(
+    field("shades.col.name", textInput(s.name, (v) => save(`name ${s.idx} ${v}`))),
+    field("shades.col.address", textInput(String(s.addr), (v) => save(`addr ${s.idx} ${v}`))),
+    field("shades.col.rolling", textInput(String(s.rolling), (v) => save(`roll ${s.idx} ${v}`))),
+    field("shades.col.linked", linkControl(s)),
+    field("pos.col.up", msControl(s, "up_ms")),
+    field("pos.col.upLag", msControl(s, "up_lag")),
+    field("pos.col.down", msControl(s, "down_ms")),
+    field("pos.col.downLag", msControl(s, "down_lag")),
+    field("pos.col.my", myControl(s)),
+    field("pos.col.invert", switchEl(!!s.invert, (on) => savePos(s, { invert: on }))),
+    field("motor.progLabel", mkBtn(t("motor.prog"), () => send(`tx ${s.idx} prog`), "small")),
+  );
+  cell.append(help, grid);
+  row.append(cell);
+  return row;
+}
+
+/** A labelled field for the detail grid: an uppercase caption above its control. */
+function field(labelKey, control) {
+  const f = document.createElement("div");
+  f.className = "field";
+  const cap = document.createElement("span");
+  cap.className = "fieldlabel";
+  cap.textContent = t(labelKey);
+  f.append(cap, control);
+  return f;
+}
+
+/** A committing text input (returns the bare element, for use inside a field). */
+function textInput(val, onCommit) {
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "num";
+  inp.value = val;
+  inp.addEventListener("change", () => onCommit(inp.value.trim()));
+  return inp;
 }
 
 /**
@@ -374,25 +466,22 @@ function savePos(s, patch) {
   save(`pos ${s.idx} ${s.up_ms || 0} ${s.down_ms || 0} ${my} ${s.invert ? 1 : 0} ${s.up_lag || 0} ${s.down_lag || 0}`);
 }
 
-/** Travel-time cell: a millisecond input paired with a measuring stopwatch. */
-function msTd(s, field) {
-  const cell = document.createElement("td");
+/** Travel-time control: a millisecond input paired with a measuring stopwatch. */
+function msControl(s, key) {
   const wrap = document.createElement("div");
-  wrap.className = "namecell";
+  wrap.className = "ctrl";
   const inp = document.createElement("input");
   inp.type = "number";
   inp.className = "num";
   inp.min = "0";
-  inp.value = s[field] || "";
-  inp.addEventListener("change", () => savePos(s, { [field]: parseInt(inp.value, 10) || 0 }));
-  wrap.append(inp, stopwatchBtn((ms) => { inp.value = ms; savePos(s, { [field]: ms }); }));
-  cell.append(wrap);
-  return cell;
+  inp.value = s[key] || "";
+  inp.addEventListener("change", () => savePos(s, { [key]: parseInt(inp.value, 10) || 0 }));
+  wrap.append(inp, stopwatchBtn((ms) => { inp.value = ms; savePos(s, { [key]: ms }); }));
+  return wrap;
 }
 
-/** Favourite-position cell: a 0–100 percent input, blank when unset (255). */
-function myTd(s) {
-  const cell = document.createElement("td");
+/** Favourite-position control: a 0–100 percent input, blank when unset (255). */
+function myControl(s) {
   const inp = document.createElement("input");
   inp.type = "number";
   inp.className = "num";
@@ -403,8 +492,7 @@ function myTd(s) {
     const v = inp.value === "" ? 255 : Math.max(0, Math.min(100, parseInt(inp.value, 10) || 0));
     savePos(s, { my: v });
   });
-  cell.append(inp);
-  return cell;
+  return inp;
 }
 
 /**
@@ -444,11 +532,11 @@ function stopwatchBtn(onDone) {
 }
 
 /**
- * Name cell: a remote-link indicator followed by the editable name. The badge is
- * lit when a physical wall remote is linked to the shade (its presses are mirrored
- * into the position) and muted when none is.
+ * Name cell: a remote-link indicator followed by the name as a disclosure button
+ * that toggles the shade's detail row. The badge is lit when a physical wall
+ * remote is linked (its presses mirror into the position) and muted otherwise.
  */
-function nameTd(s) {
+function nameTd(s, detail) {
   const cell = document.createElement("td");
   const wrap = document.createElement("div");
   wrap.className = "namecell";
@@ -457,12 +545,16 @@ function nameTd(s) {
   badge.className = "remote-badge" + (linked ? " on" : "");
   badge.title = t(linked ? "shades.remoteLinked" : "shades.remoteNone");
   icon("remote").then((svg) => { badge.innerHTML = svg; });
-  const inp = document.createElement("input");
-  inp.type = "text";
-  inp.className = "name";
-  inp.value = s.name;
-  inp.addEventListener("change", () => save(`name ${s.idx} ${inp.value.trim()}`));
-  wrap.append(badge, inp);
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "namebtn";
+  toggle.textContent = s.name || String(s.idx);
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.addEventListener("click", () => {
+    detail.hidden = !detail.hidden;
+    toggle.setAttribute("aria-expanded", String(!detail.hidden));
+  });
+  wrap.append(badge, toggle);
   cell.append(wrap);
   return cell;
 }
@@ -488,22 +580,8 @@ function iconBtn(name, label, onClick) {
   return b;
 }
 
-function td(text) { const el = document.createElement("td"); el.textContent = text; return el; }
-
-function inputTd(cls, val, onCommit) {
-  const cell = document.createElement("td");
-  const inp = document.createElement("input");
-  inp.type = "text";
-  inp.className = cls;
-  inp.value = val;
-  inp.addEventListener("change", () => onCommit(inp.value.trim()));
-  cell.append(inp);
-  return cell;
-}
-
-/** Cell holding a labelled toggle switch (a styled checkbox) for the On state. */
-function switchTd(on, onToggle) {
-  const cell = document.createElement("td");
+/** A styled toggle switch (a checkbox) — the bare control, for use in a cell or field. */
+function switchEl(on, onToggle) {
   const lab = document.createElement("label");
   lab.className = "switch";
   const inp = document.createElement("input");
@@ -513,7 +591,13 @@ function switchTd(on, onToggle) {
   const slider = document.createElement("span");
   slider.className = "slider";
   lab.append(inp, slider);
-  cell.append(lab);
+  return lab;
+}
+
+/** Cell wrapping a toggle switch for the On state. */
+function switchTd(on, onToggle) {
+  const cell = document.createElement("td");
+  cell.append(switchEl(on, onToggle));
   return cell;
 }
 
@@ -604,18 +688,16 @@ function addDiscoverCard(addr, code) {
  * a dash) with a Link/Unlink action. Link arms a one-shot RF capture; Unlink
  * clears it.
  */
-function linkTd(s) {
-  const cell = document.createElement("td");
+function linkControl(s) {
   const wrap = document.createElement("div");
-  wrap.className = "namecell";
+  wrap.className = "ctrl";
   const has = s.link && s.link !== "000000";
   const label = document.createElement("span");
   label.textContent = has ? s.link : t("shades.linkNone");
   const btn = mkBtn(t(has ? "shades.unlink" : "shades.linkRemote"),
     () => (has ? mutate(`unlink ${s.idx}`) : linkRemote(s.idx)), "small");
   wrap.append(label, btn);
-  cell.append(wrap);
-  return cell;
+  return wrap;
 }
 
 /**
@@ -915,6 +997,9 @@ $("importFile").addEventListener("change", (e) => {
 });
 $("radioFreq").addEventListener("change", (e) => save(`freq ${e.target.value}`));
 $("radioListen").addEventListener("click", () => scanAndListen());
+$("radioPower").addEventListener("change", (e) => save(`power ${e.target.value}`));
+$("radioRxbw").addEventListener("change", (e) => save(`rxbw ${e.target.value}`));
+$("radioScan").addEventListener("click", () => scanBand().catch((e) => log("ERR " + e.message)));
 $("pairBtn").addEventListener("click", () => showPairing().catch((e) => log("ERR " + e.message)));
 $("qrToggle").addEventListener("click", () => renderQr());
 $("resetBtn").addEventListener("click", () => {

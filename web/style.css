@@ -187,8 +187,20 @@ input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--navy
 /* stopwatch mid-timing: filled accent so it reads as "running" */
 .btn.icon.running { background: var(--yellow); border-color: var(--yellow-600); color: var(--navy); }
 
-/* name cell: remote-link badge + editable name */
+/* name cell: remote-link badge + name-as-disclosure button */
 .namecell { display: flex; align-items: center; gap: .45rem; }
+.namebtn { font: inherit; font-weight: 600; background: none; border: 0; padding: 0; margin: 0;
+  color: var(--fg); cursor: pointer; text-align: left; }
+.namebtn:hover, .namebtn[aria-expanded="true"] { color: var(--navy-700); text-decoration: underline; }
+
+/* per-shade detail row: fields wrap in a grid so the panel fits any width */
+.detailrow > td { background: var(--surface-alt); padding: .75rem 1rem 1rem; }
+.detailrow > td > .muted { margin: 0 0 .75rem; }
+.detailgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: .75rem 1rem; align-items: end; }
+.detailgrid .field { display: flex; flex-direction: column; gap: .25rem; }
+.detailgrid .fieldlabel { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.detailgrid .ctrl { display: flex; align-items: center; gap: .3rem; }
 .remote-badge { flex: none; display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem;
   color: var(--muted); opacity: .3; }
 .remote-badge.on { color: var(--yellow-600); opacity: 1; }

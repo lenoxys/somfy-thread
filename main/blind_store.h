@@ -136,6 +136,24 @@ float    blind_store_freq(void);
  */
 void     blind_store_set_freq(float mhz);
 
+/**
+ * @return The device-wide TX-power index (into cc1101_tx_power_dbm[]; default is
+ *         the top +10 dBm level).
+ */
+uint8_t  blind_store_tx_power(void);
+
+/** Set and persist the device-wide TX-power index. */
+void     blind_store_set_tx_power(uint8_t idx);
+
+/**
+ * @return The device-wide RX-bandwidth index (into cc1101_rxbw_khz[]; default is
+ *         the ~203 kHz preset matching the init register set).
+ */
+uint8_t  blind_store_rxbw(void);
+
+/** Set and persist the device-wide RX-bandwidth index. */
+void     blind_store_set_rxbw(uint8_t idx);
+
 #ifdef __cplusplus
 }
 #endif

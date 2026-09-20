@@ -784,7 +784,43 @@ static int cmd_on(int argc, char **argv)
  */
 static int cmd_radio(int, char **)
 {
-    printf("{\"rf\":%s,\"freq\":%.3f}\n", s_rf_ok ? "true" : "false", blind_store_freq());
+    printf("{\"rf\":%s,\"freq\":%.3f", s_rf_ok ? "true" : "false", blind_store_freq());
+    if (s_rf_ok) printf(",\"rssi\":%d", cc1101_rssi_dbm(&s_cc));
+    printf(",\"power\":%u,\"power_opts\":[", blind_store_tx_power());
+    for (int i = 0; i < CC1101_TX_POWER_COUNT; i++) printf("%s%d", i ? "," : "", cc1101_tx_power_dbm[i]);
+    printf("],\"rxbw\":%u,\"rxbw_opts\":[", blind_store_rxbw());
+    for (int i = 0; i < CC1101_RXBW_COUNT; i++) printf("%s%u", i ? "," : "", cc1101_rxbw_khz[i]);
+    printf("]}\n");
+    return 0;
+}
+
+/**
+ * Get/set the device-wide TX power by index into the CC1101 power table. A tuning
+ * knob for range vs. regulatory headroom; applied live and persisted.
+ */
+static int cmd_power(int argc, char **argv)
+{
+    if (argc < 2) { printf("%u\n", blind_store_tx_power()); return 0; }
+    int idx = atoi(argv[1]);
+    if (idx < 0 || idx >= CC1101_TX_POWER_COUNT) { printf("ERR power idx 0..%d\n", CC1101_TX_POWER_COUNT - 1); return 1; }
+    blind_store_set_tx_power((uint8_t)idx);
+    if (s_rf_ok) cc1101_set_power(&s_cc, (uint8_t)idx);
+    printf("OK\n");
+    return 0;
+}
+
+/**
+ * Get/set the device-wide RX bandwidth by index into the CC1101 bandwidth table.
+ * Applied live (re-enters RX) and persisted; trades sensitivity for selectivity.
+ */
+static int cmd_rxbw(int argc, char **argv)
+{
+    if (argc < 2) { printf("%u\n", blind_store_rxbw()); return 0; }
+    int idx = atoi(argv[1]);
+    if (idx < 0 || idx >= CC1101_RXBW_COUNT) { printf("ERR rxbw idx 0..%d\n", CC1101_RXBW_COUNT - 1); return 1; }
+    blind_store_set_rxbw((uint8_t)idx);
+    if (s_rf_ok) { cc1101_set_rxbw(&s_cc, (uint8_t)idx); somfy_rx_resume(); }
+    printf("OK\n");
     return 0;
 }
 
@@ -819,7 +855,7 @@ static int cmd_reg(int argc, char **argv)
  * its input/output changes in a way an older configuration site cannot handle.
  * The site refuses to configure a board whose proto is below the one it targets.
  */
-#define SOMFY_PROTO 6
+#define SOMFY_PROTO 7
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(); return 0; }
@@ -835,7 +871,7 @@ static void register_console(void)
 {
     const esp_console_cmd_t cmds[] = {
         {"version","Print firmware id and version",          NULL, &cmd_version, NULL},
-        {"radio",  "Print radio status (rf present, freq) as JSON", NULL, &cmd_radio, NULL},
+        {"radio",  "Print radio status (rf, freq, rssi, power, rxbw + options) as JSON", NULL, &cmd_radio, NULL},
         {"list",   "List shades as JSON",                    NULL, &cmd_list,   NULL},
         {"add",    "add [hexaddr] [rolling] [name...] — register a shade", NULL, &cmd_add, NULL},
         {"remove", "remove <idx> — delete a shade",          NULL, &cmd_remove, NULL},
@@ -845,6 +881,8 @@ static void register_console(void)
         {"tx",     "tx <idx> <up|down|my|stop|prog>",        NULL, &cmd_tx,     NULL},
         {"name",   "name <idx> <text>",                      NULL, &cmd_name,   NULL},
         {"freq",   "freq [mhz] — get/set device radio frequency", NULL, &cmd_freq, NULL},
+        {"power",  "power [idx] — get/set TX power (index into radio power_opts)", NULL, &cmd_power, NULL},
+        {"rxbw",   "rxbw [idx] — get/set RX bandwidth (index into radio rxbw_opts)", NULL, &cmd_rxbw, NULL},
         {"reg",    "reg [hexaddr] [hexval] — dump/read/write CC1101 registers", NULL, &cmd_reg, NULL},
         {"addr",   "addr <idx> <hex24>",                     NULL, &cmd_addr,   NULL},
         {"roll",   "roll <idx> <value>",                     NULL, &cmd_roll,   NULL},
@@ -927,6 +965,10 @@ extern "C" void app_main(void)
 
     s_rf_ok = cc1101_init(&s_cc);
     if (s_rf_ok) s_rf_ok = somfy_rts_init(&s_rts, &s_cc);
+    if (s_rf_ok) {
+        cc1101_set_power(&s_cc, blind_store_tx_power());
+        cc1101_set_rxbw(&s_cc, blind_store_rxbw());
+    }
     if (!s_rf_ok) ESP_LOGW(TAG, "RF disabled (CC1101 absent?) — Matter/config still run");
     else if (!somfy_rx_init(&s_cc, app_on_rx_frame))
         ESP_LOGW(TAG, "RX disabled — manual-remote sync unavailable, TX still works");
