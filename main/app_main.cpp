@@ -95,9 +95,9 @@ extern "C" void app_rf_submit(int idx, uint8_t cmd)
 
 /**
  * Delegate for a lift-only WindowCovering. Somfy RTS has no position feedback,
- * so movement is driven by direction inferred from target vs current position,
- * and Current is set equal to Target so the Home Assistant UI settles. CHIP
- * emits HandleStopMotion immediately after a movement; WC_STOP_GUARD_US
+ * so movement is driven by direction inferred from target vs current position and
+ * the reported position is estimated from travel time (see the timed motion model
+ * above). CHIP emits HandleStopMotion immediately after a movement; WC_STOP_GUARD_US
  * distinguishes that auto-call from a genuine user stop.
  */
 #define WC_STOP_GUARD_US (500 * 1000)
@@ -853,9 +853,11 @@ static void rx_motion_work(intptr_t arg)
  * Receive-frame handler (called from the RX task). Logs every decoded frame —
  * this is the sniffer, and unknown addresses reveal remotes to pair/import. For
  * a known active shade it advances the rolling-code floor (so our next transmit
- * is not stale-rejected) and mirrors the manual movement into Matter so Home
- * Assistant reflects a remote used outside the automation. Frames within
- * WC_RX_ECHO_GUARD_US of our own transmit are ignored as self-reception.
+ * is not stale-rejected) and feeds up/down/My into the timed position model (via
+ * rx_motion_work) so the Matter controller reflects a remote used outside it;
+ * other commands (PROG and the like) carry no position change and are dropped.
+ * Frames within WC_RX_ECHO_GUARD_US of our own transmit are ignored as
+ * self-reception.
  */
 #define WC_RX_ECHO_GUARD_US (1500 * 1000)
 extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
@@ -880,7 +882,7 @@ extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
     else if (code > s->rolling) { s->rolling = code; blind_store_save(); }
 
     if (!s->enabled || !s_wc_ep_ids[idx]) return;  // not exposed — no endpoint to mirror to
-    if (cmd != SOMFY_UP && cmd != SOMFY_DOWN && cmd != SOMFY_MY) return;  // PROG/other: no position change
+    if (cmd != SOMFY_UP && cmd != SOMFY_DOWN && cmd != SOMFY_MY) return;
     chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_motion_work, ((intptr_t)idx << 8) | cmd);
 }
 

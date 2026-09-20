@@ -315,8 +315,10 @@ function mutate(cmd) {
 function renderManage() {
   const tb = $("manageBody");
   const adv = $("advBody");
+  const pos = $("posBody");
   tb.textContent = "";
   adv.textContent = "";
+  pos.textContent = "";
   $("shadeTable").hidden = shades.length === 0;
   $("shadeEmpty").hidden = shades.length !== 0;
   for (const s of shades) {
@@ -341,7 +343,84 @@ function renderManage() {
     progTd.append(mkBtn(t("motor.prog"), () => send(`tx ${s.idx} prog`), "small"));
     ar.append(progTd);
     adv.append(ar);
+
+    const pr = document.createElement("tr");
+    pr.append(td(s.name || String(s.idx)));
+    pr.append(msTd(s, "up_ms"));
+    pr.append(msTd(s, "down_ms"));
+    pr.append(myTd(s));
+    pr.append(switchTd(!!s.invert, (on) => savePos(s, { invert: on })));
+    pos.append(pr);
   }
+}
+
+/**
+ * Commit shade `s`'s position-estimate params. The `pos` command takes all four
+ * fields at once, so merge the patch over the current values and send the lot,
+ * updating the local copy so a follow-up edit builds on fresh state without a
+ * full refresh. `my` 255 means unset.
+ */
+function savePos(s, patch) {
+  Object.assign(s, patch);
+  const my = (s.my === undefined || s.my === "") ? 255 : s.my;
+  save(`pos ${s.idx} ${s.up_ms || 0} ${s.down_ms || 0} ${my} ${s.invert ? 1 : 0}`);
+}
+
+/** Travel-time cell: a millisecond input paired with a measuring stopwatch. */
+function msTd(s, field) {
+  const cell = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "namecell";
+  const inp = document.createElement("input");
+  inp.type = "number";
+  inp.className = "num";
+  inp.min = "0";
+  inp.value = s[field] || "";
+  inp.addEventListener("change", () => savePos(s, { [field]: parseInt(inp.value, 10) || 0 }));
+  wrap.append(inp, stopwatchBtn((ms) => { inp.value = ms; savePos(s, { [field]: ms }); }));
+  cell.append(wrap);
+  return cell;
+}
+
+/** Favourite-position cell: a 0–100 percent input, blank when unset (255). */
+function myTd(s) {
+  const cell = document.createElement("td");
+  const inp = document.createElement("input");
+  inp.type = "number";
+  inp.className = "num";
+  inp.min = "0";
+  inp.max = "100";
+  inp.value = (s.my === 255 || s.my === undefined) ? "" : s.my;
+  inp.addEventListener("change", () => {
+    const v = inp.value === "" ? 255 : Math.max(0, Math.min(100, parseInt(inp.value, 10) || 0));
+    savePos(s, { my: v });
+  });
+  cell.append(inp);
+  return cell;
+}
+
+/**
+ * Stopwatch toggle: first click starts timing, second reports the elapsed
+ * milliseconds via `onDone`. It only measures — the shade is driven by the motor
+ * buttons or a physical remote — so it transmits nothing itself.
+ */
+function stopwatchBtn(onDone) {
+  let t0 = 0;
+  const b = mkBtn("", () => {
+    if (!t0) {
+      t0 = performance.now();
+      b.classList.add("running");
+      b.title = t("pos.timeStop");
+    } else {
+      onDone(Math.round(performance.now() - t0));
+      t0 = 0;
+      b.classList.remove("running");
+      b.title = t("pos.timeStart");
+    }
+  }, "icon small");
+  b.title = t("pos.timeStart");
+  icon("timer").then((svg) => { b.innerHTML = svg; });
+  return b;
 }
 
 /**
