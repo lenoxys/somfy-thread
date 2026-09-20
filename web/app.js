@@ -358,8 +358,27 @@ async function refresh() {
   renderManage();
 }
 
-/** Fire-and-forget a setter command (device replies OK/ERR to the log). */
-function save(cmd) { send(cmd).catch((e) => log("ERR " + e.message)); }
+/**
+ * Send a setter command and confirm it against the board's reply: every firmware
+ * setter answers `OK` or `ERR …`. Flash a transient toast so a settings edit or a
+ * calibration write (which routes through savePos → save) visibly lands.
+ */
+function save(cmd) {
+  request(cmd, (l) => l === "OK" || l.startsWith("ERR"))
+    .then((l) => { const bad = l.startsWith("ERR"); toast(t(bad ? "save.failed" : "save.ok"), !bad); })
+    .catch((e) => { log("ERR " + e.message); toast(t("save.failed"), false); });
+}
+
+/** Flash a brief status toast (bottom-center), auto-hiding after 2 s. */
+let toastTimer = 0;
+function toast(msg, ok = true) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.toggle("bad", !ok);
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2000);
+}
 
 /**
  * Run a mutating command (add/remove) and reload the list, since it changes the
@@ -419,10 +438,7 @@ function shadeDetailRow(s) {
     field("shades.col.address", textInput(String(s.addr), (v) => save(`addr ${s.idx} ${v}`))),
     field("shades.col.rolling", textInput(String(s.rolling), (v) => save(`roll ${s.idx} ${v}`))),
     field("shades.col.linked", linkControl(s)),
-    field("pos.col.up", msControl(s, "up_ms")),
-    field("pos.col.upLag", msControl(s, "up_lag")),
-    field("pos.col.down", msControl(s, "down_ms")),
-    field("pos.col.downLag", msControl(s, "down_lag")),
+    ...posFields(s),
     field("pos.col.my", myControl(s)),
     field("pos.col.invert", switchEl(!!s.invert, (on) => savePos(s, { invert: on }))),
     field("motor.progLabel", mkBtn(t("motor.prog"), () => send(`tx ${s.idx} prog`), "small")),
@@ -466,18 +482,164 @@ function savePos(s, patch) {
   save(`pos ${s.idx} ${s.up_ms || 0} ${s.down_ms || 0} ${my} ${s.invert ? 1 : 0} ${s.up_lag || 0} ${s.down_lag || 0}`);
 }
 
-/** Travel-time control: a millisecond input paired with a measuring stopwatch. */
-function msControl(s, key) {
-  const wrap = document.createElement("div");
-  wrap.className = "ctrl";
+/** A millisecond number input (0+), blank when unset. */
+function numInput(val) {
   const inp = document.createElement("input");
   inp.type = "number";
   inp.className = "num";
   inp.min = "0";
-  inp.value = s[key] || "";
-  inp.addEventListener("change", () => savePos(s, { [key]: parseInt(inp.value, 10) || 0 }));
-  wrap.append(inp, stopwatchBtn((ms) => { inp.value = ms; savePos(s, { [key]: ms }); }));
-  return wrap;
+  inp.value = val || "";
+  return inp;
+}
+
+/**
+ * The four travel-time inputs (open/close time + startup lag) plus a per-direction
+ * assisted-calibration button. Editing any input commits all four at once via
+ * savePos(); the calibrate buttons fill their direction's lag + time live.
+ */
+function posFields(s) {
+  const upMs = numInput(s.up_ms), upLag = numInput(s.up_lag);
+  const downMs = numInput(s.down_ms), downLag = numInput(s.down_lag);
+  const iv = (i) => parseInt(i.value, 10) || 0;
+  const commit = () => savePos(s, {
+    up_ms: iv(upMs), up_lag: iv(upLag), down_ms: iv(downMs), down_lag: iv(downLag),
+  });
+  const inputs = { up_ms: upMs, up_lag: upLag, down_ms: downMs, down_lag: downLag };
+  [upMs, upLag, downMs, downLag].forEach((i) => i.addEventListener("change", commit));
+  return [
+    field("pos.col.up", upMs),
+    field("pos.col.upLag", upLag),
+    field("pos.col.down", downMs),
+    field("pos.col.downLag", downLag),
+    field("cal.title", mkBtn(t("cal.launch"), () => openCalibration(s, inputs), "small primary")),
+  ];
+}
+
+/* ── calibration modal (gamified, assisted travel-time measurement) ─────── */
+
+// Two rounds: open then close. Each is a 3-tap sequence (go → first movement →
+// end stop) that transmits and times the real motor, capturing startup lag and
+// travel time for that direction.
+const CAL_ROUNDS = [
+  { dir: "up", lagKey: "up_lag", msKey: "up_ms", labelKey: "cal.roundOpen", readyKey: "cal.readyOpen" },
+  { dir: "down", lagKey: "down_lag", msKey: "down_ms", labelKey: "cal.roundClose", readyKey: "cal.readyClose" },
+];
+
+// Startup lag (command → first movement) is a global metric, measured once and
+// reused for every round and every shade. Cached in localStorage; each calibrated
+// shade still persists it into its own up_lag/down_lag on the board.
+const CAL_LAG_KEY = "calLagMs";
+const getCalLag = () => { const v = parseInt(localStorage.getItem(CAL_LAG_KEY), 10); return Number.isFinite(v) ? v : null; };
+const setCalLag = (ms) => localStorage.setItem(CAL_LAG_KEY, String(ms));
+
+/**
+ * Run the gamified calibration wizard for shade `s`. Walks the two rounds, each
+ * with phases ready → timing-lag → timing-travel → scored, then writes the four
+ * measured values to `inputs` and persists them via savePos(). Transmits `tx`
+ * frames (moves the shade), so it lives behind an explicit launch button.
+ */
+function openCalibration(s, inputs) {
+  const modal = $("calModal");
+  const results = {};
+  let round = 0, phase = "ready", tCmd = 0, tMove = 0, ticker = 0, action = null;
+
+  const stopTicker = () => { clearInterval(ticker); ticker = 0; };
+  const onKey = (e) => {
+    if (e.code === "Space" || e.key === " ") { e.preventDefault(); if (action) action.click(); }
+  };
+  const close = () => {
+    stopTicker();
+    document.removeEventListener("keydown", onKey);
+    modal.hidden = true;
+  };
+
+  const secs = (ms) => (ms / 1000).toFixed(1);
+
+  function render() {
+    const r = CAL_ROUNDS[round];
+    const body = $("calBody");
+    body.textContent = "";
+
+    const dots = document.createElement("div");
+    dots.className = "cal-dots";
+    CAL_ROUNDS.forEach((_, i) => {
+      const d = document.createElement("span");
+      d.className = "cal-dot" + (i < round ? " done" : i === round ? " active" : "");
+      dots.append(d);
+    });
+
+    const title = document.createElement("h3");
+    title.className = "cal-title";
+    title.textContent = `${t("cal.heading", { name: s.name || s.idx })} — ${t(r.labelKey)}`;
+
+    const timer = document.createElement("div");
+    timer.className = "cal-timer";
+    timer.textContent = "0.0";
+
+    const hint = document.createElement("p");
+    hint.className = "cal-hint";
+
+    action = mkBtn("", () => {}, "primary cal-tap");
+    const cancel = mkBtn(t("cal.cancel"), close, "small");
+    let extra = null;
+
+    const runTimer = (from) => {
+      stopTicker();
+      ticker = setInterval(() => { timer.textContent = secs(Math.max(0, performance.now() - from)); }, 50);
+    };
+
+    if (phase === "ready") {
+      hint.textContent = t(r.readyKey);
+      action.textContent = t("cal.go");
+      action.onclick = () => {
+        send(`tx ${s.idx} ${r.dir}`);
+        tCmd = performance.now();
+        const lag = getCalLag();
+        if (lag == null) { phase = "lag"; runTimer(tCmd); }
+        else { tMove = tCmd + lag; phase = "travel"; runTimer(tMove); }
+        render();
+      };
+      if (getCalLag() != null) {
+        extra = mkBtn(t("cal.remeasureLag"), () => { localStorage.removeItem(CAL_LAG_KEY); render(); }, "small");
+      }
+    } else if (phase === "lag") {
+      hint.textContent = t("cal.tapMove");
+      action.textContent = t("cal.tapMoveBtn");
+      runTimer(tCmd);
+      action.onclick = () => { tMove = performance.now(); setCalLag(Math.round(tMove - tCmd)); phase = "travel"; render(); };
+    } else if (phase === "travel") {
+      hint.textContent = t("cal.tapEnd");
+      action.textContent = t("cal.tapEndBtn");
+      runTimer(tMove);
+      action.onclick = () => {
+        stopTicker();
+        results[r.lagKey] = Math.round(tMove - tCmd);
+        results[r.msKey] = Math.round(performance.now() - tMove);
+        phase = "scored"; render();
+      };
+    } else {
+      stopTicker();
+      timer.textContent = "";
+      icon("check").then((svg) => { timer.innerHTML = svg; });
+      hint.innerHTML = t("cal.scored", { lag: secs(results[r.lagKey]), travel: secs(results[r.msKey]) });
+      const last = round === CAL_ROUNDS.length - 1;
+      action.textContent = last ? t("cal.finish") : t("cal.next");
+      action.onclick = () => {
+        if (last) {
+          for (const k in results) if (inputs[k]) inputs[k].value = results[k];
+          savePos(s, results);
+          close();
+        } else { round++; phase = "ready"; render(); }
+      };
+    }
+
+    body.append(dots, title, timer, hint, action, cancel);
+    if (extra) body.append(extra);
+  }
+
+  modal.hidden = false;
+  document.addEventListener("keydown", onKey);
+  render();
 }
 
 /** Favourite-position control: a 0–100 percent input, blank when unset (255). */
@@ -505,30 +667,6 @@ function posTd(s) {
   cell.className = "muted";
   cell.textContent = `${Math.round((s.pos || 0) / 100)}%`;
   return cell;
-}
-
-/**
- * Stopwatch toggle: first click starts timing, second reports the elapsed
- * milliseconds via `onDone`. It only measures — the shade is driven by the motor
- * buttons or a physical remote — so it transmits nothing itself.
- */
-function stopwatchBtn(onDone) {
-  let t0 = 0;
-  const b = mkBtn("", () => {
-    if (!t0) {
-      t0 = performance.now();
-      b.classList.add("running");
-      b.title = t("pos.timeStop");
-    } else {
-      onDone(Math.round(performance.now() - t0));
-      t0 = 0;
-      b.classList.remove("running");
-      b.title = t("pos.timeStart");
-    }
-  }, "icon small");
-  b.title = t("pos.timeStart");
-  icon("timer").then((svg) => { b.innerHTML = svg; });
-  return b;
 }
 
 /**

@@ -220,6 +220,27 @@ tr.disabled .ctrls, tr.disabled input.name { opacity: .5; }
 .switch input:checked + .slider { background: var(--ok); border-color: var(--ok); }
 .switch input:checked + .slider::before { transform: translateX(1.1rem); }
 
+/* calibration modal: gamified travel-time measurement */
+#calBody { display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; }
+.cal-dots { display: flex; gap: .5rem; }
+.cal-dot { width: .6rem; height: .6rem; border-radius: 999px; background: var(--line); }
+.cal-dot.active { background: var(--yellow); }
+.cal-dot.done { background: var(--ok); }
+.cal-title { margin: 0; font-size: 1.05rem; text-align: center; }
+.cal-timer { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 2.6rem;
+  font-weight: 800; color: var(--navy-700); line-height: 1; }
+.cal-timer svg { width: 2.6rem; height: 2.6rem; fill: currentColor; color: var(--ok); display: block; }
+.cal-hint { margin: 0; text-align: center; color: var(--muted); min-height: 2.6em; }
+.cal-hint b { color: var(--fg); }
+.btn.cal-tap { font-size: 1.15rem; padding: .8rem 1.6rem; min-width: 12rem; }
+
+/* save confirmation toast: brief bottom-center status after a setter lands */
+.toast { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%);
+  z-index: 200; background: var(--ok); color: #fff; padding: .6rem 1rem;
+  border-radius: 999px; box-shadow: var(--shadow); font-size: .9rem; font-weight: 600; }
+.toast[hidden] { display: none; }
+.toast.bad { background: var(--danger); }
+
 /* discovery: a card per newly heard remote */
 .dcard { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .75rem; margin: .5rem 0;
   background: var(--surface-alt); }

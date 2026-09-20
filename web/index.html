@@ -120,6 +120,9 @@
         <button id="linkCancel" class="btn" data-i18n="shades.linkCancel"></button>
       </div>
     </div>
+    <div id="calModal" class="modal-overlay" hidden>
+      <div class="modal-card"><div id="calBody"></div></div>
+    </div>
     <table id="shadeTable" hidden>
       <thead><tr><th data-i18n="shades.col.name"></th><th data-i18n="shades.col.on"></th><th data-i18n="shades.col.pos"></th><th data-i18n="shades.col.motor"></th><th></th></tr></thead>
       <tbody id="manageBody"></tbody>
@@ -167,6 +170,8 @@
     <div id="log"></div>
   </details>
 </main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <footer class="sitever">
   <div>somfy-thread · <span id="siteVer">dev</span></div>
