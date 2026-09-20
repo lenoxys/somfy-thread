@@ -405,8 +405,11 @@ static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
  * Bring shade `idx`'s Matter endpoint online: resume its persisted endpoint id
  * if it has one (stable identity across reboots and removals), otherwise create
  * a fresh id and persist it. Records the endpoint pointer/id, binds the
- * delegate, and enables it so the controller sees the new cover. Caller must
- * hold the CHIP stack lock. Does NOT persist the store — caller decides when.
+ * delegate, composes it under the Aggregator endpoint (set_parent_endpoint, so
+ * the cover appears in the Aggregator's PartsList and a bridge-aware controller
+ * groups it as its own device), and enables it so the controller sees the new
+ * cover. Caller must hold the CHIP stack lock. Does NOT persist the store —
+ * caller decides when.
  * @return true on success.
  */
 static bool wc_endpoint_up(int idx)
@@ -424,6 +427,10 @@ static bool wc_endpoint_up(int idx)
     if (!ep) { ESP_LOGE(TAG, "shade %d: endpoint create returned NULL", idx); return false; }
     esp_err_t cerr = wc_add_clusters(ep, idx);
     if (cerr != ESP_OK) { ESP_LOGE(TAG, "shade %d: wc clusters failed (0x%x)", idx, cerr); return false; }
+    uint16_t agg_id = blind_store_agg_ep();
+    endpoint_t *agg = agg_id ? endpoint::get(s_node, agg_id) : NULL;
+    if (agg) endpoint::set_parent_endpoint(ep, agg);
+    else ESP_LOGW(TAG, "shade %d: no aggregator endpoint — cover will not group under the bridge", idx);
     uint16_t id = endpoint::get_id(ep);
     s->ep_id          = id;
     s_wc_eps[idx]     = ep;
