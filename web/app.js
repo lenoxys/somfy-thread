@@ -228,6 +228,7 @@ function setStep(n) {
   if (step === SHADES_STEP && connected) refresh().catch((e) => log("ERR " + e.message));
   if (step === MATTER_STEP) loadMatter().catch((e) => log("ERR " + e.message));
   if (step === SHADES_STEP && connected) startPosPoll(); else stopPosPoll();
+  if (step !== MATTER_STEP) stopMatterPoll();
 }
 
 /** Gate the Next button: needs a connection, and a working radio to leave the radio step. */
@@ -386,6 +387,29 @@ function startPosPoll() {
 
 /** Stop the position poll (leaving the shades step or on disconnect). */
 function stopPosPoll() { posPolling = false; }
+
+let matterPolling = false;
+
+/**
+ * While on the Matter step, re-check the board's fabric count every ~1.5 s so
+ * the view follows a pairing (or removal) completed on the hub. Commissioning
+ * never produces a command reply, so polling is the only way the UI learns it
+ * finished. Self-reschedules and stops when the step, connection, or a manual
+ * stop goes away.
+ */
+function startMatterPoll() {
+  if (matterPolling) return;
+  matterPolling = true;
+  const tick = async () => {
+    if (!matterPolling || step !== MATTER_STEP || !connected) { matterPolling = false; return; }
+    await pollMatterOnce();
+    if (matterPolling) setTimeout(tick, 1500);
+  };
+  setTimeout(tick, 1500);
+}
+
+/** Stop the Matter poll (leaving the Matter step or on disconnect). */
+function stopMatterPoll() { matterPolling = false; }
 
 /**
  * Send a setter command and confirm it against the board's reply: every firmware
@@ -971,6 +995,7 @@ function onDisconnect() {
   linking = false;
   scanning = false;
   stopPosPoll();
+  stopMatterPoll();
   try { if (writer) writer.releaseLock(); } catch (e) { /* already released */ }
   try { if (port) port.close(); } catch (e) { /* already closing */ }
   writer = null; port = null;
@@ -1119,31 +1144,57 @@ function watchMatter(line) {
   toast(t("matter.failedToast"), false);
 }
 
+let matterFabrics = -1;
+
 /**
- * Matter step: query how many fabrics the device is commissioned to and branch.
- * Not yet paired → fetch and show the pairing code right away. Already paired →
- * report it and offer a button to add another ecosystem (multi-admin). The QR is
- * never shown until asked, in either case.
+ * Reflect the board's commissioning state. Not paired → open a commissioning
+ * window and show the code; already paired → report it, hide the code/QR, and
+ * offer "add another ecosystem" (multi-admin). Only a change in fabric count
+ * acts, so the live poll never re-opens the window or clears the QR toggle mid
+ * pairing — it just flips the view the moment the hub finishes (or drops) a
+ * commission, without the user leaving the step.
+ */
+function renderMatterState(fabrics) {
+  if (fabrics === matterFabrics) return;
+  matterFabrics = fabrics;
+  const st = $("matterStatus");
+  const btn = $("pairBtn");
+  st.hidden = false;
+  st.classList.remove("bad");
+  if (fabrics > 0) {
+    st.textContent = t("matter.paired", { n: fabrics });
+    btn.textContent = t("matter.addAnother");
+    btn.hidden = false;
+    hidePairing();
+  } else {
+    st.textContent = t("matter.unpaired");
+    btn.hidden = true;
+    showPairing().catch((e) => log("ERR " + e.message));
+  }
+}
+
+/** Query the board's fabric count once and render it. */
+async function pollMatterOnce() {
+  let fabrics = 0;
+  try { fabrics = JSON.parse(await request("mstat", (l) => l.startsWith("{"))).fabrics; }
+  catch (e) { /* treat an unresponsive board as unpaired */ }
+  renderMatterState(fabrics);
+}
+
+/**
+ * Matter step: show a checking state, then render the commissioning state and
+ * keep it live via startMatterPoll so a pairing done on the hub is reflected
+ * without a back/next.
  */
 async function loadMatter() {
+  matterFabrics = -1;
   hidePairing();
   const st = $("matterStatus");
   st.hidden = false;
   st.classList.remove("bad");
   st.textContent = t("matter.checking");
-  let fabrics = 0;
-  try { fabrics = JSON.parse(await request("mstat", (l) => l.startsWith("{"))).fabrics; }
-  catch (e) { /* treat an unresponsive board as unpaired */ }
-  const btn = $("pairBtn");
-  if (fabrics > 0) {
-    st.textContent = t("matter.paired", { n: fabrics });
-    btn.textContent = t("matter.addAnother");
-    btn.hidden = false;
-  } else {
-    st.textContent = t("matter.unpaired");
-    btn.hidden = true;
-    await showPairing();
-  }
+  await pollMatterOnce();
+  startMatterPoll();
 }
 
 /**

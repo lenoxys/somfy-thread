@@ -161,6 +161,18 @@ uint8_t  blind_store_rxbw(void);
 /** Set and persist the device-wide RX-bandwidth index. */
 void     blind_store_set_rxbw(uint8_t idx);
 
+/**
+ * @return The Matter endpoint id of the Aggregator that makes this node a bridge
+ *         (0 = not created yet). Persisted in its own NVS key, independent of the
+ *         shade blob, so it is resumed to the same id every boot — Home Assistant
+ *         only treats the node as a bridge (and shows per-cover names) when the
+ *         Aggregator sits on endpoint 1.
+ */
+uint16_t blind_store_agg_ep(void);
+
+/** Persist the Aggregator's Matter endpoint id. */
+void     blind_store_set_agg_ep(uint16_t ep_id);
+
 #ifdef __cplusplus
 }
 #endif

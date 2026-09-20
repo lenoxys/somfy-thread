@@ -3,8 +3,12 @@
 // Exposes one lift-only WindowCovering endpoint per shade, created on demand as
 // shades are added (up to BLIND_MAX_COUNT). Each shade owns a persisted Matter
 // endpoint id resumed on every boot, so its identity is stable across reboots
-// and across removal of other shades. Config/backup is done over the USB serial
-// console (the contract driven by the WebSerial page). No on-device web server.
+// and across removal of other shades. The node is a minimal Matter bridge: an
+// Aggregator sits on endpoint 1 and each cover carries the Bridged Node device
+// type plus a Bridged Device Basic Information NodeLabel, so a controller shows
+// each shade's own name instead of the shared product name. Config/backup is
+// done over the USB serial console (the contract driven by the WebSerial page).
+// No on-device web server.
 #include <string.h>
 #include <stdlib.h>
 
@@ -54,6 +58,7 @@ static const char *TAG = "somfy_thread";
 using namespace esp_matter;
 using namespace esp_matter::endpoint;
 namespace WC = chip::app::Clusters::WindowCovering;
+namespace BDBI = chip::app::Clusters::BridgedDeviceBasicInformation;
 
 static cc1101_t   s_cc;
 static somfy_rts_t s_rts;
@@ -361,8 +366,11 @@ static SomfyWCDelegate s_wc_delegates[BLIND_MAX_COUNT];
  * Attach the lift-only WindowCovering device type (Identify/Groups/Scenes/WC
  * plus the lift + position-aware-lift features) to a bare endpoint, binding
  * shade `idx`'s delegate. Seeds current/target lift from the shade's persisted
- * position so the restored estimate is reported at boot.
- * @return ESP_OK, or the error from window_covering_device::add.
+ * position so the restored estimate is reported at boot. Also adds the Bridged
+ * Node device type and a Bridged Device Basic Information NodeLabel set to the
+ * shade's name, so a bridge-aware controller (the Aggregator on endpoint 1)
+ * shows each cover under its own name instead of the shared product name.
+ * @return ESP_OK, or the error from window_covering_device::add / bridged_node::add.
  */
 static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
 {
@@ -381,6 +389,15 @@ static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
     pal_cfg.current_position_lift_percent_100ths = nullable<uint16_t>(pos);
     pal_cfg.target_position_lift_percent_100ths = nullable<uint16_t>(pos);
     cluster::window_covering::feature::position_aware_lift::add(wc_cluster, &pal_cfg);
+
+    bridged_node::config_t bn;
+    err = bridged_node::add(ep, &bn);
+    if (err != ESP_OK) return err;
+    cluster_t *bdbi = cluster::get(ep, BDBI::Id);
+    if (bdbi) {
+        char *nm = (s && s->name[0]) ? s->name : (char *)"Shade";
+        cluster::bridged_device_basic_information::attribute::create_node_label(bdbi, nm, strlen(nm));
+    }
     return ESP_OK;
 }
 
@@ -488,12 +505,52 @@ static void set_matter_version(void)
 }
 
 /**
- * After esp_matter::start(), resume+enable an endpoint for every used, enabled
- * shade so covers reappear with their stable ids. Persists once at the end in
- * case any shade had no id yet (first-ever expose).
+ * Bring the Aggregator endpoint online (the device type that makes this node a
+ * bridge). Resumes its persisted id if it has one, else creates a fresh id and
+ * persists it. Home Assistant only treats the node as a bridge — and so shows
+ * each cover under its own NodeLabel instead of the shared product name — when
+ * the Aggregator sits on endpoint 1, which happens when this runs first on a
+ * node whose endpoint-id counter is fresh (right after a factory reset). If it
+ * lands elsewhere we log a warning; a `reset` + reboot re-places it at 1. Caller
+ * must hold the CHIP stack lock.
+ */
+static void aggregator_up(void)
+{
+    uint16_t id = blind_store_agg_ep();
+    aggregator::config_t cfg;
+    endpoint_t *ep = id ? endpoint::resume(s_node, ENDPOINT_FLAG_NONE, id, NULL) : NULL;
+    if (ep) {
+        cluster::descriptor::create(ep, &cfg.descriptor, CLUSTER_FLAG_SERVER);
+        aggregator::add(ep, &cfg);
+    } else {
+        ep = aggregator::create(s_node, &cfg, ENDPOINT_FLAG_NONE, NULL);
+    }
+    if (!ep) { ESP_LOGE(TAG, "aggregator endpoint failed"); return; }
+    uint16_t got = endpoint::get_id(ep);
+    if (got != id) blind_store_set_agg_ep(got);
+    endpoint::enable(ep);
+    if (got != 1)
+        ESP_LOGW(TAG, "aggregator at ep %u (not 1) — controller will not treat this node as a bridge; run `reset` then reboot to place it at ep 1", got);
+}
+
+static void locked_aggregator_up(void)
+{
+    esp_matter::lock::status_t ls = esp_matter::lock::chip_stack_lock(portMAX_DELAY);
+    if (ls == esp_matter::lock::FAILED) { ESP_LOGE(TAG, "aggregator: chip_stack_lock FAILED"); return; }
+    aggregator_up();
+    if (ls != esp_matter::lock::ALREADY_TAKEN) esp_matter::lock::chip_stack_unlock();
+}
+
+/**
+ * After esp_matter::start(), bring up the Aggregator first (so it claims the low
+ * endpoint id / endpoint 1 when the counter is fresh), then resume+enable an
+ * endpoint for every used, enabled shade so covers reappear with their stable
+ * ids. Persists once at the end in case any shade had no id yet (first-ever
+ * expose).
  */
 static void restore_endpoints(void)
 {
+    locked_aggregator_up();
     int n = 0;
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         shade_t *s = blind_store_get(i);
@@ -637,6 +694,8 @@ static void print_shades_json(bool live)
 
 static int cmd_list(int, char **) { print_shades_json(true); return 0; }
 
+static void rx_motion_work(intptr_t arg);
+
 static int cmd_tx(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: tx <idx> <up|down|my|stop|prog>\n"); return 1; }
@@ -644,6 +703,8 @@ static int cmd_tx(int argc, char **argv)
     uint8_t cmd = parse_cmd(argv[2]);
     if (!blind_store_used(idx) || !cmd) { printf("ERR bad idx/cmd\n"); return 1; }
     app_rf_submit(idx, cmd);
+    if (cmd == SOMFY_UP || cmd == SOMFY_DOWN || cmd == SOMFY_MY)
+        chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_motion_work, ((intptr_t)idx << 8) | cmd);
     printf("OK\n");
     return 0;
 }
@@ -652,6 +713,21 @@ static int cmd_tx(int argc, char **argv)
  * `name <idx> <text...>` — set a shade's display name, joining the remaining
  * arguments with spaces so multi-word names work.
  */
+/**
+ * Push shade `idx`'s current name into its live Bridged Device Basic Information
+ * NodeLabel so a controller reflects a rename without waiting for a reboot.
+ * Runs on the Matter thread (scheduled from the console). No-op if the endpoint
+ * is not up.
+ */
+static void name_update_work(intptr_t arg)
+{
+    int idx = (int)arg;
+    shade_t *s = blind_store_get(idx);
+    if (!s || !s_wc_ep_ids[idx]) return;
+    esp_matter_attr_val_t val = esp_matter_char_str(s->name, strlen(s->name));
+    attribute::update(s_wc_ep_ids[idx], BDBI::Id, BDBI::Attributes::NodeLabel::Id, &val);
+}
+
 static int cmd_name(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: name <idx> <text>\n"); return 1; }
@@ -664,6 +740,8 @@ static int cmd_name(int argc, char **argv)
         strncat(s->name, argv[i], sizeof(s->name) - strlen(s->name) - 1);
     }
     blind_store_save();
+    if (s_wc_ep_ids[idx])
+        chip::DeviceLayer::PlatformMgr().ScheduleWork(name_update_work, (intptr_t)idx);
     printf("OK\n");
     return 0;
 }
@@ -924,6 +1002,28 @@ static int cmd_log(int argc, char **argv)
 }
 
 /**
+ * Debug: print the Aggregator endpoint id and, for every live cover, its Matter
+ * endpoint id and the Bridged Device Basic Information NodeLabel the controller
+ * is served — so the names presented over Matter can be checked against the
+ * shade table without a controller.
+ */
+static int cmd_dump(int, char **)
+{
+    printf("aggregator ep=%u\n", blind_store_agg_ep());
+    for (int i = 0; i < BLIND_MAX_COUNT; i++) {
+        if (!s_wc_ep_ids[i]) continue;
+        char label[40] = "<none>";
+        attribute_t *a = attribute::get(s_wc_ep_ids[i], BDBI::Id, BDBI::Attributes::NodeLabel::Id);
+        esp_matter_attr_val_t val;
+        if (a && attribute::get_val(a, &val) == ESP_OK && val.val.a.b)
+            snprintf(label, sizeof(label), "%.*s", val.val.a.s, (char *)val.val.a.b);
+        printf("ep=%u idx=%d label=%s\n", s_wc_ep_ids[i], i, label);
+    }
+    printf("OK\n");
+    return 0;
+}
+
+/**
  * Register the serial console commands that form the WebSerial contract.
  */
 static void register_console(void)
@@ -951,6 +1051,7 @@ static void register_console(void)
         {"qr",     "Print Matter QR payload",                NULL, &cmd_qr,     NULL},
         {"pair",   "Open commissioning window, print code",  NULL, &cmd_pair,   NULL},
         {"mstat",  "Matter status (commissioned fabric count) as JSON", NULL, &cmd_mstat, NULL},
+        {"dump",   "Debug: aggregator ep + per-cover NodeLabel", NULL, &cmd_dump, NULL},
         {"reset",  "Reset Matter+Thread (keeps shades) and reboot", NULL, &cmd_reset,  NULL},
         {"factory","Full factory reset: erase shades + Matter+Thread, reboot", NULL, &cmd_factory, NULL},
         {"reboot", "Reboot the device (no data change)",     NULL, &cmd_reboot, NULL},
@@ -960,9 +1061,10 @@ static void register_console(void)
 }
 
 /**
- * Feed an observed remote press into the timed position model on the Matter
- * thread, so a physical up/down/My keeps the reported position in sync. Argument
- * packs the shade index in the high bits and the Somfy command in the low byte.
+ * Feed a command into the timed position model on the Matter thread, so a
+ * physical remote press (RX) or a local `tx` from the web UI keeps the reported
+ * position in sync. Argument packs the shade index in the high bits and the
+ * Somfy command in the low byte.
  * `invert` decides which physical direction opens; My defers to motion_my's
  * moving-vs-idle branch (stop vs favourite).
  */

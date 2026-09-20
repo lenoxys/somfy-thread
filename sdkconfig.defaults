@@ -41,8 +41,9 @@ CONFIG_ENABLE_CHIP_SHELL=y
 # OTA requestor so firmware can be updated over Matter.
 CONFIG_ENABLE_OTA_REQUESTOR=y
 
-# Up to BLIND_MAX_COUNT WindowCovering shades as dynamic endpoints.
-CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=32
+# BLIND_MAX_COUNT (32) WindowCovering shades plus the one Aggregator endpoint
+# that makes the node a bridge, all dynamic endpoints.
+CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=33
 
 # mbedTLS bits Matter needs.
 CONFIG_MBEDTLS_HKDF_C=y
