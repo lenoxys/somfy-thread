@@ -58,9 +58,11 @@ function firmwareAsset(release) {
  */
 async function hashMatches(buf, digest) {
   if (!digest || !digest.startsWith("sha256:")) return true;
-  const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))]
+  const want = digest.slice(7);
+  const got = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))]
     .map((b) => b.toString(16).padStart(2, "0")).join("");
-  return hex === digest.slice(7);
+  log("sha256 want " + want + " got " + got + (got === want ? " OK" : " MISMATCH"));
+  return got === want;
 }
 
 let releases = [];
@@ -138,9 +140,12 @@ async function flashSelected() {
   status("flash.connecting");
   let transport, ok = false, usbJtag = false;
   try {
+    log("fetch firmware " + firmwareSrc(r, asset));
     const resp = await fetch(firmwareSrc(r, asset));
+    log("http " + resp.status);
     if (!resp.ok) throw new Error(t("flash.notHosted"));
     const buf = new Uint8Array(await resp.arrayBuffer());
+    log("firmware " + buf.length + " bytes, magic 0x" + buf[0].toString(16));
     if (buf[0] !== 0xE9 || !(await hashMatches(buf, asset.digest))) throw new Error(t("flash.badImage"));
     const wipe = $("wipeAll").checked;
     const fileArray = flashRanges(buf.length).map((rg) => ({ data: buf.subarray(rg.from, rg.to), address: rg.offset }));

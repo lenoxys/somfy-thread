@@ -3,7 +3,10 @@
 # esptool-js bundle and mirrors each release's firmware .bin under fw/<tag>/
 # so the flasher fetches it same-origin (GitHub's release-download URL redirects
 # to a signed host with no CORS headers, so a browser fetch of it is blocked).
-# Re-runs on release publish so new firmware lands on the site.
+# Re-runs after the firmware workflow completes (workflow_run), so the mirror
+# step downloads a release .bin only once it has actually been attached — a
+# release publish attaches the bin minutes later, and a re-cut release rebuilds
+# it, so triggering on publish alone would mirror a missing or stale bin.
 name: pages
 
 on:
@@ -12,6 +15,9 @@ on:
     paths:
       - "web/**"
       - ".github/workflows/pages.yml"
+  workflow_run:
+    workflows: ["firmware"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -24,6 +30,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
