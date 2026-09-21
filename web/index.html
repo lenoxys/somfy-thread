@@ -145,6 +145,24 @@
         <button id="linkCancel" class="btn" data-i18n="shades.linkCancel"></button>
       </div>
     </div>
+    <div id="pairModal" class="modal-overlay" hidden>
+      <div class="modal-card modal-wide">
+        <h2 id="pairTitle"></h2>
+        <div id="pairProg">
+          <p data-i18n-html="pair.progHelp"></p>
+          <button id="pairProgBtn" class="btn primary" data-i18n="pair.progBtn"></button>
+        </div>
+        <div id="pairTest" hidden>
+          <p class="muted" data-i18n="pair.testHelp"></p>
+          <div class="bar">
+            <button id="pairOpen" class="btn small" data-i18n="motor.open"></button>
+            <button id="pairStop" class="btn small" data-i18n="motor.stop"></button>
+            <button id="pairClose" class="btn small" data-i18n="motor.close"></button>
+          </div>
+        </div>
+        <button id="pairDone" class="btn primary" data-i18n="pair.done" hidden></button>
+      </div>
+    </div>
     <div id="calModal" class="modal-overlay" hidden>
       <div class="modal-card"><div id="calBody"></div></div>
     </div>

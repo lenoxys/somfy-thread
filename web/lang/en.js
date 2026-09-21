@@ -137,6 +137,12 @@ export default {
   "motor.close": "Close",
   "motor.stop": "Stop",
 
+  "pair.title": "Pair {name}",
+  "pair.progHelp": "This shade has its own virtual remote on the board. To teach the motor to obey it: press and hold the <strong>PROG</strong> button on a remote already paired to this motor until it jogs, then click Send PROG within a few seconds — the motor jogs again to confirm.",
+  "pair.progBtn": "Send PROG",
+  "pair.testHelp": "Test it: the motor should now respond to these.",
+  "pair.done": "Done",
+
   "matter.title": "Add to your smart home",
   "matter.intro": "This is a standard Matter-over-Thread device. Get the code below and add it in whatever app or hub you use — the controller doesn't matter.",
   "matter.help": "Commissioning happens over Bluetooth, then the device joins your Thread network — so you need a Thread border router reachable on that network (built into many hubs/speakers; any brand works). Keep the board near the phone while pairing. This is separate from the Somfy RF PROG you did per shade.",

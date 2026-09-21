@@ -999,9 +999,14 @@ let discovering = false;
 let linking = false;
 const seen = new Set();
 
-/** @return the set of shade addresses already configured, upper-case hex. */
+/** @return the set of addresses already spoken for — each shade's own address and its monitored linked remote — upper-case hex. */
 function knownAddrs() {
-  return new Set(shades.map((s) => String(s.addr).toUpperCase()));
+  const known = new Set();
+  for (const s of shades) {
+    known.add(String(s.addr).toUpperCase());
+    if (s.link && s.link !== "000000") known.add(String(s.link).toUpperCase());
+  }
+  return known;
 }
 
 /**
@@ -1042,8 +1047,8 @@ function stopDiscover() {
 
 /**
  * Show a card for a newly heard remote: its address, a name field, and
- * Add/Ignore. Add registers the shade seeding rolling from the heard code + 1
- * so our first transmit is not stale-rejected.
+ * Add/Ignore. Add creates a shade with its own virtual remote and registers this
+ * heard remote as the monitored link, then guides PROG + a test (addShade).
  */
 function addDiscoverCard(addr, code) {
   const card = document.createElement("div");
@@ -1057,7 +1062,7 @@ function addDiscoverCard(addr, code) {
   name.maxLength = 15;
   name.placeholder = t("shades.namePlaceholder");
   const add = mkBtn(t("shades.addHeard"), () => {
-    mutate(`add ${addr} ${code + 1} ${name.value.trim()}`);
+    addShade(name.value.trim(), addr, code);
     card.remove();
   }, "primary small");
   const ignore = mkBtn(t("shades.ignore"), () => card.remove(), "small");
@@ -1125,9 +1130,64 @@ function cancelLink() {
   $("linkModal").hidden = true;
 }
 
-/** Add a motor without a remote: the firmware invents an address; then PROG it. */
+/** Add a motor without a remote: same guided flow as discovery, minus the linked remote. */
 function addMotor() {
-  mutate(`add`);
+  addShade("", null, 0);
+}
+
+/**
+ * Create a shade with its OWN virtual remote (the firmware invents the address —
+ * PROG pairs it to the motor). If a heard remote is given, register it as the
+ * monitored link so its wall presses mirror this shade's position. Then guide the
+ * user through the PROG gesture and an optional test (beginPair).
+ */
+async function addShade(name, link, code) {
+  let idx;
+  try {
+    const reply = await request("add", (l) => l.startsWith("OK ") || l.startsWith("ERR"));
+    if (!reply.startsWith("OK ")) { log(reply); toast(t("save.failed"), false); return; }
+    idx = parseInt(reply.slice(3), 10);
+    if (name) await send(`name ${idx} ${name}`);
+    if (link) await send(`link ${idx} ${link} ${code || 0}`);
+  } catch (e) {
+    log("add failed: " + e.message);
+    toast(t("save.failed"), false);
+    return;
+  }
+  await refresh();
+  beginPair(idx);
+}
+
+let pairIdx = -1;
+
+/**
+ * Guided pairing for a freshly added shade, layered over the discovery panel.
+ * The board holds this shade's own virtual remote; PROG teaches the motor to
+ * obey it. Both PROG and the test transmit on 433 MHz — the user triggers them.
+ */
+function beginPair(idx) {
+  pairIdx = idx;
+  const s = shades.find((x) => x.idx === idx);
+  $("pairTitle").textContent = t("pair.title", { name: (s && s.name) || idx });
+  $("pairProg").hidden = false;
+  $("pairTest").hidden = true;
+  $("pairDone").hidden = true;
+  $("pairModal").hidden = false;
+}
+
+/** Send this shade's PROG frame, then reveal the test controls and Done. */
+function pairProg() {
+  if (pairIdx < 0) return;
+  send(`tx ${pairIdx} prog`);
+  $("pairProg").hidden = true;
+  $("pairTest").hidden = false;
+  $("pairDone").hidden = false;
+}
+
+/** Close the pairing modal, leaving discovery open to add the next shade. */
+function endPair() {
+  $("pairModal").hidden = true;
+  pairIdx = -1;
 }
 
 /* ── actions ──────────────────────────────────────────────────────────── */
@@ -1443,6 +1503,11 @@ $("discover").addEventListener("click", () => startDiscover().catch((e) => log("
 $("discoverDone").addEventListener("click", () => stopDiscover());
 $("linkCancel").addEventListener("click", () => cancelLink());
 $("addMotor").addEventListener("click", () => addMotor());
+$("pairProgBtn").addEventListener("click", () => pairProg());
+$("pairOpen").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} up`); });
+$("pairStop").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} stop`); });
+$("pairClose").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} down`); });
+$("pairDone").addEventListener("click", () => endPair());
 $("reconnect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 if ("serial" in navigator)
   navigator.serial.addEventListener("disconnect", (e) => { if (e.target === port) onDisconnect(); });
