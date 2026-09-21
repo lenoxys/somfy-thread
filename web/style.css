@@ -146,7 +146,7 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 .wiznav #next { margin-left: auto; }
 /* draw the eye to Next once a step's action unlocks it */
 .btn.bounce { animation: bounce .7s ease 5; }
-@keyframes bounce { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(-11px); } 55% { transform: translateY(0); } 78% { transform: translateY(-5px); } }
+@keyframes bounce { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(11px); } 55% { transform: translateX(0); } 78% { transform: translateX(5px); } }
 @media (prefers-reduced-motion: reduce) { .btn.bounce { animation: none; } }
 
 /* connection status */
