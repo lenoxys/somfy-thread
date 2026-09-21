@@ -100,8 +100,9 @@ async function flashSelected() {
     const fileArray = flashRanges(buf.length).map((rg) => ({ data: buf.subarray(rg.from, rg.to), address: rg.offset }));
     const dev = lastPort || (await navigator.serial.getPorts())[0] || await navigator.serial.requestPort();
     await releasePort();
-    transport = new (await esptool()).Transport(dev, false);
-    const loader = new (await esptool()).ESPLoader({ transport, baudrate: 460800, romBaudrate: 115200, terminal: term });
+    const mod = await esptool();
+    transport = new mod.Transport(dev, false);
+    const loader = new mod.ESPLoader({ transport, baudrate: 460800, romBaudrate: 115200, terminal: term });
     await loader.main();
     status("flash.writing");
     await loader.writeFlash({
@@ -110,7 +111,13 @@ async function flashSelected() {
       reportProgress: (i, written, total) => bar(Math.round(((i + (total ? written / total : 0)) / fileArray.length) * 100)),
     });
     status("flash.resetting");
-    await loader.after("hard_reset");
+    // The ESP32-C6's native USB Serial/JTAG (PID 0x1001) does not reboot from
+    // the classic RTS-pin reset that after("hard_reset") uses — it would sit in
+    // the flasher stub and stay silent. Use the USB-JTAG reset sequence for it,
+    // the classic reset for a USB-to-UART bridge (CP210x/CH340).
+    const pid = transport.getPid && transport.getPid();
+    if (pid === 0x1001) { log("reset: USB-JTAG sequence"); await new mod.UsbJtagSerialReset(transport).reset(); }
+    else { log("reset: classic hard reset"); await loader.after("hard_reset"); }
     bar(100);
     ok = true;
   } catch (e) {
