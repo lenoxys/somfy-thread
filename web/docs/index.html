@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Unlicense -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<title>somfy-thread — developer guide</title>
+<link rel="icon" href="../light.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">somfy<span>-thread</span></span>
+  <span class="muted">developer guide</span>
+  <a class="topbtn txt push" href="../" title="Back to setup">← Setup</a>
+  <a class="topbtn txt" href="https://github.com/lenoxys/somfy-thread" target="_blank" rel="noopener" title="GitHub">GitHub</a>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Serial console</h2>
+    <p class="muted">
+      The firmware exposes a line-oriented console over the ESP32-C6 <strong>native USB</strong>
+      (USB Serial/JTAG), <strong>115200 baud, 8N1</strong>. The setup wizard on the home page
+      drives it through WebSerial — everything below is the same command surface, so you can
+      also type these into any serial terminal (<code>screen</code>, <code>picocom</code>, PlatformIO monitor…).
+    </p>
+    <div class="callout">
+      Only <strong>one</strong> process can hold the port at a time. Close the setup page's
+      serial session (or your terminal) before opening the other.
+    </div>
+    <p class="muted">
+      Commands are case-sensitive. Addresses are hex (24-bit), rolling codes and indices are
+      decimal. Most commands answer <code>OK</code>, <code>OK &lt;idx&gt;</code>, an
+      <code>ERR …</code> line, or a one-line JSON document.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Command reference</h2>
+    <table>
+      <thead><tr><th>Command</th><th>What it does</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td><code>version</code></td><td>Firmware id, version and store protocol.</td><td><code>somfy-thread &lt;ver&gt; proto &lt;n&gt;</code></td></tr>
+        <tr><td><code>log [0|1]</code></td><td>Get/set Thread+Matter diagnostic logging.</td><td><code>{"log":0}</code></td></tr>
+        <tr><td><code>radio</code></td><td>Radio status: rf link, frequency, rssi, power, rxbw and the selectable options.</td><td>JSON object</td></tr>
+        <tr><td><code>list</code></td><td>All shades as JSON. Reports the live mid-move estimate for a shade in motion.</td><td>JSON array (see below)</td></tr>
+        <tr><td><code>add [hexaddr] [rolling] [name…]</code></td><td>Register a shade in the first free slot and bring its Matter endpoint online. No address ⇒ a MAC-derived one is invented (PROG path); rolling defaults to <code>1</code>.</td><td><code>OK &lt;idx&gt;</code> · <code>ERR full</code> · <code>ERR endpoint</code></td></tr>
+        <tr><td><code>remove &lt;idx&gt;</code></td><td>Take the shade off Thread and free its slot.</td><td><code>OK</code> · <code>ERR bad idx</code></td></tr>
+        <tr><td><code>on &lt;idx&gt; &lt;0|1&gt;</code></td><td>Exposure switch. <code>1</code> resumes the endpoint on Thread (same stable id); <code>0</code> destroys it, keeping the id for later.</td><td><code>OK</code></td></tr>
+        <tr><td><code>link &lt;idx&gt; &lt;hexaddr&gt; [rolling]</code></td><td>Monitor a physical wall remote so pressing it mirrors the shade's position. Never transmitted as. <code>link &lt;idx&gt; 0</code> clears it.</td><td><code>OK</code></td></tr>
+        <tr><td><code>unlink &lt;idx&gt;</code></td><td>Stop monitoring the linked remote.</td><td><code>OK</code></td></tr>
+        <tr><td><code>tx &lt;idx&gt; &lt;up|down|my|stop|prog&gt;</code> ⚠️</td><td><strong>Transmits RF.</strong> Sends a Somfy command and advances the rolling code.</td><td><code>OK</code> · <code>ERR bad idx/cmd</code></td></tr>
+        <tr><td><code>name &lt;idx&gt; &lt;text&gt;</code></td><td>Rename a shade (≤15 chars).</td><td><code>OK</code></td></tr>
+        <tr><td><code>freq [mhz]</code></td><td>Get/set the radio frequency (e.g. <code>433.42</code>). Applied live.</td><td>current freq</td></tr>
+        <tr><td><code>power [idx]</code></td><td>Get/set TX power (index into the <code>radio</code> power options).</td><td>current index</td></tr>
+        <tr><td><code>rxbw [idx]</code></td><td>Get/set RX bandwidth (index into the <code>radio</code> rxbw options).</td><td>current index</td></tr>
+        <tr><td><code>reg [hexaddr] [hexval]</code></td><td>Dump / read / write CC1101 registers (debug).</td><td>register dump</td></tr>
+        <tr><td><code>addr &lt;idx&gt; &lt;hex24&gt;</code></td><td>Set the 24-bit Somfy address the shade transmits as.</td><td><code>OK</code></td></tr>
+        <tr><td><code>roll &lt;idx&gt; &lt;value&gt;</code></td><td>Set the rolling code counter (decimal). Use to sync from an existing controller.</td><td><code>OK</code></td></tr>
+        <tr><td><code>pos &lt;idx&gt; &lt;up_ms&gt; &lt;down_ms&gt; [my_pct] [invert] [up_lag_ms] [down_lag_ms]</code></td><td>Position-estimate parameters. Trailing args left unchanged if omitted. <code>0</code> travel time ⇒ snap instead of ramp.</td><td><code>OK</code></td></tr>
+        <tr><td><code>export</code></td><td>Full shade table for backup (settled positions).</td><td>JSON array (see below)</td></tr>
+        <tr><td><code>qr</code></td><td>Matter onboarding QR payload.</td><td><code>MT:…</code> string</td></tr>
+        <tr><td><code>pair</code></td><td>Open the commissioning window and print the manual pairing code.</td><td>pairing code</td></tr>
+        <tr><td><code>mstat</code></td><td>Matter status: commissioned fabric count, Thread role, commissioning window.</td><td><code>{"fabrics":0,"thread":0,"win":1}</code></td></tr>
+        <tr><td><code>fabrics</code></td><td>Commissioned fabrics (index, vendor, fabric id).</td><td>JSON array</td></tr>
+        <tr><td><code>dump</code></td><td>Debug: aggregator endpoint + per-cover NodeLabel.</td><td>text</td></tr>
+        <tr><td><code>reset</code></td><td>Reset Matter + Thread (<strong>keeps shades</strong>) and reboot.</td><td>reboots</td></tr>
+        <tr><td><code>factory</code></td><td>Full factory reset: erase shades <em>and</em> Matter/Thread, reboot.</td><td>reboots</td></tr>
+        <tr><td><code>reboot</code></td><td>Reboot the device, no data change.</td><td>reboots</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Shade JSON (<code>list</code> / <code>export</code>)</h2>
+    <p class="muted">One object per used slot, on a single line:</p>
+    <pre><code>{"idx":0,"name":"Salon","addr":"0EB998","rolling":1498,"on":true,
+ "remote":true,"link":"6FDA96","up_ms":35000,"down_ms":30000,
+ "my":255,"invert":true,"up_lag":0,"down_lag":0,"pos":0}</code></pre>
+    <table>
+      <thead><tr><th>Field</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>idx</code></td><td>Slot index — stable per shade, used by every mutating command.</td></tr>
+        <tr><td><code>name</code></td><td>Display name (≤15 chars).</td></tr>
+        <tr><td><code>addr</code></td><td>24-bit Somfy address (hex) the shade transmits as.</td></tr>
+        <tr><td><code>rolling</code></td><td>Rolling-code counter. Must stay ahead of what the motor last accepted.</td></tr>
+        <tr><td><code>on</code></td><td>Exposed as a Matter WindowCovering endpoint over Thread.</td></tr>
+        <tr><td><code>remote</code></td><td>Cloned from a physical remote (<code>true</code>) vs PROG-paired (<code>false</code>).</td></tr>
+        <tr><td><code>link</code></td><td>Address of a monitored wall remote (<code>000000</code> = none).</td></tr>
+        <tr><td><code>up_ms</code> / <code>down_ms</code></td><td>Full-open / full-close travel times (ms). <code>0</code> = snap to target.</td></tr>
+        <tr><td><code>my</code></td><td>Favourite ("my") position 0–100. <code>255</code> = unset.</td></tr>
+        <tr><td><code>invert</code></td><td>Swap open/close for reversed installs.</td></tr>
+        <tr><td><code>up_lag</code> / <code>down_lag</code></td><td>Startup dead-time before the shade visibly moves (ms).</td></tr>
+        <tr><td><code>pos</code></td><td>Current lift estimate, 0–10000 (hundredths of a percent, 0 = open).</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Expectations &amp; gotchas</h2>
+    <ul>
+      <li><strong>Rolling-code sync before transmitting.</strong> Somfy RTS is one-way and rejects
+        a code the motor has already seen. If a motor is also driven by another controller/remote,
+        <code>roll</code> the shade to that controller's current counter (or higher) before any
+        <code>tx</code>, or the motor will ignore the frame.</li>
+      <li><strong>Position is estimated, not measured.</strong> The motor never reports where it is.
+        The firmware ramps <code>pos</code> from travel times (<code>pos</code> command). A full
+        open/close re-zeros drift against the end stop.</li>
+      <li><strong>"My" is context-dependent.</strong> While moving it acts as Stop; while idle it
+        drives toward <code>my_pct</code> — set that to match the favourite you programmed on the motor.</li>
+      <li><strong>NVS wipe on a merged flash.</strong> Flashing the merged image at offset 0 blanks
+        the shade store (addresses, rolling codes, positions). Back up with <code>export</code> first,
+        or flash app-only. Matter pairing credentials survive.</li>
+      <li><strong><code>reset</code> keeps shades but clears Matter.</strong> Endpoint ids are
+        re-derived on the next boot, so the device re-commissions but your shades remain.</li>
+      <li><strong>Endpoint ids are stable.</strong> <code>on 0</code> hides a shade from Thread but
+        keeps its id, so <code>on 1</code> restores the same Matter identity.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

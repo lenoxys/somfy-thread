@@ -27,7 +27,7 @@
 #include <app/clusters/window-covering-server/window-covering-server.h>
 #include <app-common/zap-generated/cluster-objects.h>
 #include <app-common/zap-generated/attributes/Accessors.h>
-#include <app/server/OnboardingCodesUtil.h>
+#include <setup_payload/OnboardingCodesUtil.h>
 #include <setup_payload/SetupPayload.h>
 #include <setup_payload/QRCodeSetupPayloadGenerator.h>
 #include <app/server/Server.h>
@@ -43,6 +43,7 @@
 #include <openthread/thread.h>
 #include <platform/ESP32/OpenthreadLauncher.h>
 #include <lib/support/logging/CHIPLogging.h>
+#include <lib/support/CodeUtils.h>
 
 extern "C" {
 #include "board.h"
@@ -232,7 +233,7 @@ static void motion_tick_work(intptr_t)
 
 static void motion_timer_cb(void *)
 {
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(motion_tick_work, 0);
+    LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(motion_tick_work, 0));
 }
 
 static void motion_timer_start(void)
@@ -386,15 +387,14 @@ static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
     uint16_t pos = s ? s->pos : 0;
     cluster::descriptor::config_t desc_cfg;
     if (!cluster::descriptor::create(ep, &desc_cfg, CLUSTER_FLAG_SERVER)) return ESP_FAIL;
-    window_covering_device::config_t wc;
+    window_covering::config_t wc;
     wc.window_covering.type = 0x00;
     wc.window_covering.delegate = &s_wc_delegates[idx];
-    esp_err_t err = window_covering_device::add(ep, &wc);
+    esp_err_t err = window_covering::add(ep, &wc);
     if (err != ESP_OK) return err;
 
     cluster_t *wc_cluster = cluster::get(ep, WC::Id);
-    cluster::window_covering::feature::lift::config_t lift_cfg;
-    cluster::window_covering::feature::lift::add(wc_cluster, &lift_cfg);
+    cluster::window_covering::feature::lift::add(wc_cluster);
     cluster::window_covering::feature::position_aware_lift::config_t pal_cfg;
     pal_cfg.current_position_lift_percent_100ths = nullable<uint16_t>(pos);
     pal_cfg.target_position_lift_percent_100ths = nullable<uint16_t>(pos);
@@ -472,25 +472,20 @@ static void wc_endpoint_down(int idx)
 
 /**
  * Take the CHIP stack lock and run wc_endpoint_up / _down. Endpoint lifecycle
- * ops must not race the Matter thread, and the console runs off it. chip_stack_lock
- * returns ALREADY_TAKEN (not SUCCESS) when the calling task already holds the lock;
- * in that case we proceed but must not unlock, or we would drop a lock we did not
- * take. Only FAILED is a real error.
+ * ops must not race the Matter thread, and the console runs off it.
+ * ScopedChipStackLock takes the lock for the scope and releases on destruction;
+ * with portMAX_DELAY it blocks until acquired, and it internally skips the
+ * release when the calling task already holds the lock (re-entrant call).
  */
 static bool locked_endpoint_up(int idx)
 {
-    esp_matter::lock::status_t ls = esp_matter::lock::chip_stack_lock(portMAX_DELAY);
-    if (ls == esp_matter::lock::FAILED) { ESP_LOGE(TAG, "shade %d: chip_stack_lock FAILED", idx); return false; }
-    bool ok = wc_endpoint_up(idx);
-    if (ls != esp_matter::lock::ALREADY_TAKEN) esp_matter::lock::chip_stack_unlock();
-    return ok;
+    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
+    return wc_endpoint_up(idx);
 }
 static void locked_endpoint_down(int idx)
 {
-    esp_matter::lock::status_t ls = esp_matter::lock::chip_stack_lock(portMAX_DELAY);
-    if (ls == esp_matter::lock::FAILED) return;
+    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
     wc_endpoint_down(idx);
-    if (ls != esp_matter::lock::ALREADY_TAKEN) esp_matter::lock::chip_stack_unlock();
 }
 
 static bool s_diag_logs = true;
@@ -558,10 +553,8 @@ static void aggregator_up(void)
 
 static void locked_aggregator_up(void)
 {
-    esp_matter::lock::status_t ls = esp_matter::lock::chip_stack_lock(portMAX_DELAY);
-    if (ls == esp_matter::lock::FAILED) { ESP_LOGE(TAG, "aggregator: chip_stack_lock FAILED"); return; }
+    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
     aggregator_up();
-    if (ls != esp_matter::lock::ALREADY_TAKEN) esp_matter::lock::chip_stack_unlock();
 }
 
 /**
@@ -632,7 +625,7 @@ static void open_cw_work(intptr_t)
 {
     auto &cwm = chip::Server::GetInstance().GetCommissioningWindowManager();
     if (!cwm.IsCommissioningWindowOpen())
-        cwm.OpenBasicCommissioningWindow(chip::System::Clock::Seconds16(15 * 60));
+        LogErrorOnFailure(cwm.OpenBasicCommissioningWindow(chip::System::Clock::Seconds16(15 * 60)));
 }
 
 /**
@@ -640,7 +633,7 @@ static void open_cw_work(intptr_t)
  */
 extern "C" void app_matter_open_window(void)
 {
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(open_cw_work, 0);
+    LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(open_cw_work, 0));
 }
 
 /**
@@ -693,7 +686,7 @@ static void factory_reset_work(intptr_t full)
  */
 extern "C" void app_matter_factory_reset(int full)
 {
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(factory_reset_work, full);
+    LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(factory_reset_work, full));
 }
 
 /**
@@ -754,7 +747,7 @@ static int cmd_tx(int argc, char **argv)
     if (!blind_store_used(idx) || !cmd) { printf("ERR bad idx/cmd\n"); return 1; }
     app_rf_submit(idx, cmd);
     if (cmd == SOMFY_UP || cmd == SOMFY_DOWN || cmd == SOMFY_MY)
-        chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_motion_work, ((intptr_t)idx << 8) | cmd);
+        LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_motion_work, ((intptr_t)idx << 8) | cmd));
     printf("OK\n");
     return 0;
 }
@@ -791,7 +784,7 @@ static int cmd_name(int argc, char **argv)
     }
     blind_store_save();
     if (s_wc_ep_ids[idx])
-        chip::DeviceLayer::PlatformMgr().ScheduleWork(name_update_work, (intptr_t)idx);
+        LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(name_update_work, (intptr_t)idx));
     printf("OK\n");
     return 0;
 }
@@ -1088,13 +1081,9 @@ static int cmd_dump(int, char **)
         esp_matter_attr_val_t val;
         if (a && attribute::get_val(a, &val) == ESP_OK && val.val.a.b)
             snprintf(label, sizeof(label), "%.*s", val.val.a.s, (char *)val.val.a.b);
-        char dts[48] = "";
-        uint8_t dtc = 0;
-        uint32_t *ids = s_wc_eps[i] ? endpoint::get_device_type_ids(s_wc_eps[i], &dtc) : NULL;
-        for (uint8_t k = 0; ids && k < dtc; k++)
-            snprintf(dts + strlen(dts), sizeof(dts) - strlen(dts), "%s0x%04lx", k ? "," : "", (unsigned long)ids[k]);
+        uint8_t dtc = s_wc_eps[i] ? endpoint::get_device_type_count(s_wc_eps[i]) : 0;
         bool desc = s_wc_eps[i] && cluster::get(s_wc_eps[i], 0x001D) != NULL;
-        printf("ep=%u idx=%d label=%s devtypes=[%s] descriptor=%d\n", s_wc_ep_ids[i], i, label, dts, desc);
+        printf("ep=%u idx=%d label=%s devtypes=%u descriptor=%d\n", s_wc_ep_ids[i], i, label, dtc, desc);
     }
     printf("OK\n");
     return 0;
@@ -1192,7 +1181,7 @@ extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
 
     if (!s->enabled || !s_wc_ep_ids[idx]) return;  // not exposed — no endpoint to mirror to
     if (cmd != SOMFY_UP && cmd != SOMFY_DOWN && cmd != SOMFY_MY) return;
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_motion_work, ((intptr_t)idx << 8) | cmd);
+    LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(rx_motion_work, ((intptr_t)idx << 8) | cmd));
 }
 
 /**
