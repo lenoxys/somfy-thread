@@ -45,6 +45,31 @@
     </div>
   </div>
 
+  <div id="flashConfirmModal" class="modal-overlay" hidden>
+    <div class="modal-card modal-wide">
+      <h2 data-i18n="flasher.confirmTitle"></h2>
+      <div id="flashControls">
+        <div class="bar">
+          <label for="release" data-i18n="flasher.versionLabel"></label>
+          <select id="release"><option data-i18n="flasher.loading"></option></select>
+          <button type="button" id="refreshReleases" class="iconbtn" data-icon="refresh"></button>
+        </div>
+        <label class="wipe"><input type="checkbox" id="wipeAll"><span data-i18n="flasher.wipe"></span></label>
+        <p class="muted" data-i18n="flasher.wipeHint"></p>
+        <details id="changelogBox" hidden>
+          <summary data-i18n="flasher.releaseNotes"></summary>
+          <pre id="changelog"></pre>
+        </details>
+        <span class="muted" id="unsupported" data-i18n="flasher.unsupported" hidden></span>
+        <p class="muted" id="fallback"></p>
+        <div class="bar">
+          <button type="button" id="flashCancel" class="btn" data-i18n="flasher.cancel"></button>
+          <button type="button" id="flash" class="btn primary" data-i18n="flasher.flash" disabled></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Step 0 — Board: connect, detect firmware, then update / flash / continue -->
   <section class="card step" data-step="0">
     <h2 data-i18n="board.title"></h2>
@@ -56,24 +81,6 @@
     </div>
     <p class="muted" id="portHint" data-i18n-html="board.portHint"></p>
     <div id="detect" class="callout" hidden></div>
-    <div id="flasher" hidden>
-      <div id="flashControls">
-        <div class="bar">
-          <label for="release" data-i18n="flasher.versionLabel"></label>
-          <select id="release"><option data-i18n="flasher.loading"></option></select>
-          <button type="button" id="refreshReleases" class="iconbtn" data-icon="refresh"></button>
-        </div>
-        <label class="wipe"><input type="checkbox" id="wipeAll"><span data-i18n="flasher.wipe"></span></label>
-        <p class="muted" data-i18n="flasher.wipeHint"></p>
-        <button type="button" id="flash" class="btn primary" data-i18n="flasher.flash" disabled></button>
-      </div>
-      <span class="muted" id="unsupported" data-i18n="flasher.unsupported" hidden></span>
-      <p class="muted" id="fallback"></p>
-      <details id="changelogBox" hidden>
-        <summary data-i18n="flasher.releaseNotes"></summary>
-        <pre id="changelog"></pre>
-      </details>
-    </div>
   </section>
 
   <!-- Step 1 — Radio: prove the CC1101 works before configuring shades -->
@@ -157,7 +164,7 @@
     <div class="callout" data-i18n="matter.help"></div>
     <div id="matterStatus" class="callout" hidden></div>
     <div class="bar">
-      <button id="pairBtn" class="btn primary" hidden></button>
+      <button id="pairBtn" class="btn" hidden></button>
       <button id="qrToggle" class="btn small" hidden data-i18n="matter.showQr"></button>
       <button id="matterReset" class="btn danger small" data-i18n="matter.reset"></button>
     </div>

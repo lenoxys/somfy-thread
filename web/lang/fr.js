@@ -24,6 +24,8 @@ export default {
   "status.disconnected": "Déconnecté",
   "status.connected": "Connecté",
 
+  "flasher.confirmTitle": "Flasher le firmware",
+  "flasher.cancel": "Annuler",
   "flasher.versionLabel": "Version du firmware",
   "flasher.loading": "chargement des versions…",
   "flasher.flash": "Flasher sur l'appareil",

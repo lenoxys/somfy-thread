@@ -96,6 +96,7 @@ async function flashSelected() {
   if (!("serial" in navigator)) { $("unsupported").hidden = false; return; }
   flashing = true;
   $("flash").disabled = true;
+  $("flashConfirmModal").hidden = true;
   $("flashClose").hidden = true;
   $("flashSpin").hidden = false;
   $("flashModal").hidden = false;
@@ -156,7 +157,6 @@ async function flashSelected() {
  * reappears) with no port picker; connect() then re-fingerprints the firmware.
  */
 function waitReplug(status) {
-  $("flashControls").hidden = true;
   $("flashSpin").hidden = true;
   $("flashClose").hidden = false;
   status("flash.replug");
@@ -170,13 +170,11 @@ function waitReplug(status) {
 
 /**
  * After a successful flash the board hard-resets and its USB re-enumerates.
- * Hide the flash controls and reconnect to the same already-granted port (no
- * picker), retrying while it comes back up; connect() then re-fingerprints the
- * firmware and re-enables Next. Falls back to the manual "recheck" button if it
- * doesn't reappear.
+ * Reconnect to the same already-granted port (no picker), retrying while it
+ * comes back up; connect() then re-fingerprints the firmware and re-enables
+ * Next. Falls back to the manual "recheck" button if it doesn't reappear.
  */
 async function waitReconnect(status) {
-  $("flashControls").hidden = true;
   status("flash.reconnecting");
   for (let i = 0; i < 15; i++) {
     await sleep(1000);
@@ -360,6 +358,31 @@ function setStep(n) {
 function gateNext() {
   $("next").disabled =
     (step === CONNECT_STEP && !connected) || (step === RADIO_STEP && !radioReady);
+  updatePrimary();
+}
+
+let boardDetected = false;
+let boardOutdated = false;
+
+/**
+ * Keep exactly one gold (primary) button per step. The step's pending action is
+ * gold until its goal is met, then the gold moves to Next — matching the scan
+ * step, where Scan is gold until a remote is heard. Next stays clickable where
+ * it already was (Shades with no shade yet, an outdated board) so nobody is
+ * trapped; it only looks greyed on the steps that genuinely gate it (Connect,
+ * Radio). Dynamic per-step action buttons (the board Update/Reflash button) set
+ * their own gold in detect().
+ */
+function updatePrimary() {
+  const gold = (id, on) => { const el = $(id); if (el) el.classList.toggle("primary", on); };
+  gold("connect", !connected);
+  gold("radioListen", !radioReady);
+  gold("discover", shades.length === 0);
+  let nextGold = true;
+  if (step === CONNECT_STEP) nextGold = boardDetected && !boardOutdated;
+  else if (step === RADIO_STEP) nextGold = radioReady;
+  else if (step === SHADES_STEP) nextGold = shades.length > 0;
+  gold("next", nextGold);
 }
 
 /* ── radio step ───────────────────────────────────────────────────────── */
@@ -618,6 +641,7 @@ function renderManage() {
   tb.textContent = "";
   $("shadeTable").hidden = shades.length === 0;
   $("shadeEmpty").hidden = shades.length !== 0;
+  updatePrimary();
   for (const s of shades) {
     const tr = document.createElement("tr");
     tr.classList.toggle("disabled", !s.on);
@@ -1139,6 +1163,8 @@ async function connect(existing) {
 function onDisconnect() {
   if (!connected) return;
   connected = false;
+  boardDetected = false;
+  boardOutdated = false;
   discovering = false;
   linking = false;
   scanning = false;
@@ -1156,6 +1182,7 @@ function onDisconnect() {
   $("linkModal").hidden = true;
   $("scanModal").hidden = true;
   $("flashModal").hidden = true;
+  $("flashConfirmModal").hidden = true;
   $("disconnModal").hidden = false;
   gateNext();
 }
@@ -1195,8 +1222,10 @@ async function releasePort() {
  */
 async function detect() {
   const det = $("detect");
+  boardDetected = false;
+  boardOutdated = false;
   $("flashModal").hidden = true;
-  $("flasher").hidden = true;
+  $("flashConfirmModal").hidden = true;
   det.hidden = false;
   det.textContent = t("detect.checking");
   let ver = null, proto = 0;
@@ -1213,6 +1242,8 @@ async function detect() {
 
   if (!ver) {
     det.textContent = t("detect.none");
+    $("next").disabled = true;
+    updatePrimary();
     await beginFlash();
     return;
   }
@@ -1222,6 +1253,7 @@ async function detect() {
     det.append(t("detect.incompatible", { ver }));
     det.append(mkBtn(t("detect.update"), () => beginFlash(), "primary small"));
     $("next").disabled = true;
+    updatePrimary();
     return;
   }
 
@@ -1235,20 +1267,26 @@ async function detect() {
   const norm = (s) => (s || "").replace(/^v/, "");
   const latest = releases[0] ? releases[0].tag_name : null;
   const outdated = latest && !norm(ver).startsWith(norm(latest)) && !norm(latest).startsWith(norm(ver));
+  boardDetected = true;
+  boardOutdated = !!outdated;
   det.textContent = "";
   det.append(outdated ? t("detect.outdated", { ver, latest }) : t("detect.current", { ver }));
-  det.append(mkBtn(t(outdated ? "detect.update" : "detect.reflash"), () => beginFlash(), "small"));
+  det.append(mkBtn(t(outdated ? "detect.update" : "detect.reflash"), () => beginFlash(), outdated ? "primary small" : "small"));
   $("next").disabled = false;
+  updatePrimary();
 }
 
-/** Close the serial port and reveal the release picker + flash controls. */
+/**
+ * Open the flash confirmation modal: pick a version, toggle wipe, then Flash to
+ * proceed or Cancel to back out. The port stays connected while the modal is
+ * open (flashSelected releases it only once the user confirms), so Cancel is a
+ * clean no-op that leaves the board connected.
+ */
 async function beginFlash() {
-  await releasePort();
   populateReleaseSelect();
-  $("flashControls").hidden = false;
   $("flashModal").hidden = true;
   $("flashBar").style.width = "0%";
-  $("flasher").hidden = false;
+  $("flashConfirmModal").hidden = false;
 }
 
 /** Download the current config (global radio freq + shade table) as JSON. */
@@ -1414,6 +1452,7 @@ $("refreshReleases").addEventListener("click", () =>
   fetchReleases().then(populateReleaseSelect).catch((e) => log("ERR " + e.message)));
 $("flash").addEventListener("click", () => flashSelected());
 $("flashClose").addEventListener("click", () => { $("flashModal").hidden = true; $("flash").disabled = false; });
+$("flashCancel").addEventListener("click", () => { $("flashConfirmModal").hidden = true; });
 $("next").addEventListener("click", () => setStep(stepIn(1)));
 $("back").addEventListener("click", () => setStep(stepIn(-1)));
 
