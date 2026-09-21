@@ -19,7 +19,8 @@ not a tag).
   If `docker ps` errors, `colima status`; if it reports "empty value" or an
   unreachable daemon, `colima stop -f && colima start` (a plain `colima start`
   lies "already running" while the daemon is dead).
-- **The image is already pulled** (~22.6 GB): `espressif/esp-matter:release-v1.4_idf_v5.4.1`.
+- **The image is already pulled** (~22.6 GB): `espressif/esp-matter:release-v1.6_idf_v6.0.2`
+  (must match the CI pin in `.github/workflows/firmware.yml`).
   It is **x86_64**, so on this Apple-Silicon Mac it runs under emulation — a
   **clean build is SLOW (~30-40 min)**. Never re-pull it to "refresh".
 - **The Bash tool is sandboxed** and cannot reach the Docker daemon. Every
@@ -48,7 +49,7 @@ Run it in the **background** (`run_in_background: true`) with
 
 ```sh
 docker run --rm -v "$PWD":/work -w /work \
-  espressif/esp-matter:release-v1.4_idf_v5.4.1 bash -c '
+  espressif/esp-matter:release-v1.6_idf_v6.0.2 bash -c '
     set -e
     git config --global --add safe.directory /work
     . "$IDF_PATH/export.sh"
@@ -85,10 +86,56 @@ grep -iE "error:|BUILD DONE" /tmp/somfy_build.log | tail
 - Success = a `=== BUILD DONE: … somfy-thread-esp32c6-dev.bin ===` line and the
   bin present at the repo root.
 
-## Flash it
+## Flash it — mind the NVS wipe
 
-- Web flasher (ESP Web Tools) served from `web/`, or
-- `esptool.py --chip esp32c6 -p /dev/cu.usbmodem14101 write_flash 0x0 somfy-thread-esp32c6-dev.bin`
-  (`/dev/cu.usbmodem14101` = the C6's native USB; run esptool on the host, not in
-  the sandbox). Flashing and serial queries are fine anytime; a Somfy RF
-  **transmit** test needs asking first + a ≥20 s window.
+Run esptool on the **host** (not the sandbox); `/dev/cu.usbmodem14101` is the
+C6's native USB. Flashing and serial queries are fine anytime; a Somfy RF
+**transmit** test needs asking first + a ≥20 s window.
+
+The partition layout (`partitions.csv`) is:
+
+```
+nvs      0x9000   0x7000   shades, links, positions, radio/app config
+otadata  0x10000  0x2000
+phy_init 0x12000  0x1000
+ota_0    0x20000  0x1E0000 app
+ota_1    0x200000 0x1E0000
+fctry    0x3E0000 0x6000   Matter factory data (DAC / discriminator)
+```
+
+**⚠️ The merged `somfy-thread-esp32c6-dev.bin` at 0x0 WIPES NVS.** `merge_bin`
+produces one contiguous 0x0→~1.8 MB image and 0xFF-pads the gaps, so it blanks
+`nvs` @ 0x9000 — **all shades, linked remotes, positions, and radio/app config
+are erased.** (`fctry` @ 0x3E0000 is past the image, so Matter pairing creds
+survive.) Use the merged 0x0 flash only for a **first install or a deliberate
+wipe** — expect to re-seed shades afterwards.
+
+Helper scripts bundled with this skill (`.claude/skills/local-build/scripts/`,
+run from the repo root; port via `SOMFY_PORT`, default `/dev/cu.usbmodem14101`):
+
+- **Back up first** — the config only lives in NVS, so dump it before any wipe:
+  ```sh
+  .claude/skills/local-build/scripts/somfy.py backup   # → somfy-backup.json (the `export` JSON)
+  ```
+  Or use the web Backup step. Restore by importing that JSON in the web Backup step.
+- **Wipe / first install** (destroys NVS — shades/config gone):
+  ```sh
+  .claude/skills/local-build/scripts/flash.sh wipe     # merged image at 0x0
+  ```
+- **Update but KEEP shades** (app-only; leaves `nvs` + `fctry` untouched):
+  ```sh
+  .claude/skills/local-build/scripts/flash.sh app      # writes ota_0 @ 0x20000 + otadata @ 0x10000
+  ```
+  `build/somfy_thread.bin` is the plain app (not merged); writing it to `ota_0`
+  plus resetting `otadata` boots the new app while preserving user data.
+
+Other read-only serial helpers: `somfy.py cmd <console cmd>` (e.g. `fabrics`,
+`mstat`) and `somfy.py watch [secs]` (poll `mstat`, print transitions). Only one
+process can hold the native-USB port at a time — close the web configurator
+(WebSerial) first.
+
+**Web-flasher caveat:** the release/web flasher serves the same merged bin at
+0x0, so a web *update* also blanks NVS regardless of the "Erase everything
+first" checkbox — the copy that says it "keeps your shades when updating" is
+optimistic. Back up (Backup step / `export`) before any flash, or use the
+app-only host command above.
