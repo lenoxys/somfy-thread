@@ -1064,6 +1064,7 @@ async function connect(existing) {
   $("statusText").textContent = t("status.connected");
   $("connect").disabled = true;
   $("portHint").hidden = true;
+  $("logWrap").open = true;
   $("disconnModal").hidden = true;
   await detect();
 }
@@ -1136,6 +1137,7 @@ async function detect() {
   // probe would wrongly report "no firmware" and drop into the flasher.
   let ver = null, proto = 0;
   for (let i = 0; i < 5 && !ver; i++) {
+    det.textContent = t("detect.checking") + ` (${i + 1}/5)`;
     try {
       const line = await request("version", (l) => l.startsWith("somfy-thread "), 1500);
       const m = line.match(/^somfy-thread (\S+)(?: proto (\d+))?/);
