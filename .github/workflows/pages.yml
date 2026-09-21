@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Unlicense
-# Deploy the static install/config site to GitHub Pages. The site fetches
-# firmware from Releases at runtime, so this job only needs web/ plus the
-# vendored ESP Web Tools bundle.
+# Deploy the static install/config site to GitHub Pages. The deploy vendors the
+# ESP Web Tools bundle and mirrors each release's firmware .bin under fw/<tag>/
+# so the flasher fetches it same-origin (GitHub's release-download URL redirects
+# to a signed host with no CORS headers, so a browser fetch of it is blocked).
+# Re-runs on release publish so new firmware lands on the site.
 name: pages
 
 on:
@@ -10,6 +12,8 @@ on:
     paths:
       - "web/**"
       - ".github/workflows/pages.yml"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -33,6 +37,16 @@ jobs:
           persist-credentials: false
       - name: Vendor ESP Web Tools
         run: sh web/vendor/fetch.sh
+      - name: Mirror release firmware
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p web/fw
+          for tag in $(gh release list --json tagName -q '.[].tagName'); do
+            mkdir -p "web/fw/$tag"
+            gh release download "$tag" -p '*.bin' -D "web/fw/$tag" --clobber || true
+          done
       - name: Stamp site version
         run: echo "${GITHUB_SHA::7}" > web/version.txt
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

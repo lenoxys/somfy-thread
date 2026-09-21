@@ -65,7 +65,13 @@ function selectRelease(idx) {
     installer.removeAttribute("manifest");
     fb.textContent = t("release.noBin");
   } else {
-    installer.setAttribute("manifest", manifestUrl(asset.browser_download_url));
+    // Flash from a same-origin copy the Pages deploy mirrors under fw/<tag>/:
+    // ESP Web Tools fetches the .bin cross-origin, and GitHub's release-download
+    // URL 302-redirects to a signed host without CORS headers, so a browser
+    // fetch of it is blocked. The manual-download link below still points at
+    // GitHub (a plain navigation download, no CORS).
+    const src = new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
+    installer.setAttribute("manifest", manifestUrl(src));
     fb.textContent = "";
     const link = document.createElement("a");
     link.href = asset.browser_download_url;

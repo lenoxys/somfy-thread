@@ -23,3 +23,6 @@ doc/
 .vscode/
 .idea/
 .DS_Store
+
+# release firmware mirrored into the site at deploy time (.github/workflows/pages.yml)
+web/fw/
