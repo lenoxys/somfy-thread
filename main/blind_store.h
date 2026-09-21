@@ -70,7 +70,9 @@ int      blind_store_count(void);
 bool     blind_store_used(int idx);
 
 /**
- * Add a shade in the first free slot.
+ * Add a shade in the first free slot. Does not persist; the caller commits with
+ * blind_store_save() once the endpoint is live, or drops it with
+ * blind_store_remove() on failure.
  * @return The slot index, or -1 if the table is full.
  */
 int      blind_store_add(uint32_t addr, uint16_t rolling, const char *name);

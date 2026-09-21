@@ -132,7 +132,6 @@ int blind_store_add(uint32_t addr, uint16_t rolling, const char *name)
         s->pos     = 0;
         s->name[0] = 0;
         if (name) strncat(s->name, name, sizeof(s->name) - 1);
-        blind_store_save();
         return i;
     }
     return -1;

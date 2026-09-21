@@ -374,10 +374,7 @@ static SomfyWCDelegate s_wc_delegates[BLIND_MAX_COUNT];
  * shade's name, so a bridge-aware controller (the Aggregator on endpoint 1)
  * shows each cover under its own name instead of the shared product name.
  * Creates the Descriptor cluster explicitly (the plain endpoint::create path
- * skips it, unlike the device-type create/resume helpers) so the endpoint
- * exposes its DeviceTypeList — without it a controller reads no device types,
- * never sees the Bridged Node type, and groups every cover under the root
- * device with the shared product name.
+ * skips it) so the endpoint exposes its DeviceTypeList.
  * @return ESP_OK, or the error from the descriptor / window covering / bridged
  *         node cluster setup.
  */
@@ -390,15 +387,13 @@ static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
     window_covering::config_t wc;
     wc.window_covering.type = 0x00;
     wc.window_covering.delegate = &s_wc_delegates[idx];
+    wc.window_covering.feature_flags =
+        cluster::window_covering::feature::lift::get_id() |
+        cluster::window_covering::feature::position_aware_lift::get_id();
+    wc.window_covering.features.position_aware_lift.current_position_lift_percent_100ths = nullable<uint16_t>(pos);
+    wc.window_covering.features.position_aware_lift.target_position_lift_percent_100ths = nullable<uint16_t>(pos);
     esp_err_t err = window_covering::add(ep, &wc);
     if (err != ESP_OK) return err;
-
-    cluster_t *wc_cluster = cluster::get(ep, WC::Id);
-    cluster::window_covering::feature::lift::add(wc_cluster);
-    cluster::window_covering::feature::position_aware_lift::config_t pal_cfg;
-    pal_cfg.current_position_lift_percent_100ths = nullable<uint16_t>(pos);
-    pal_cfg.target_position_lift_percent_100ths = nullable<uint16_t>(pos);
-    cluster::window_covering::feature::position_aware_lift::add(wc_cluster, &pal_cfg);
 
     bridged_node::config_t bn;
     err = bridged_node::add(ep, &bn);
@@ -418,13 +413,9 @@ static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
  * the Aggregator endpoint (set_parent_endpoint, so the cover appears in the
  * Aggregator's PartsList and a bridge-aware controller groups it as its own
  * device), enables it so the controller sees the new cover, and registers its
- * WindowCovering delegate with CHIP. The delegate must be registered explicitly
- * here: esp_matter runs the cluster delegate-init callbacks only once, inside
- * esp_matter::start(), so an endpoint created dynamically afterward would
- * otherwise have no delegate and CHIP would silently simulate movement (update
- * Target/OperationalStatus) instead of calling HandleMovement to drive the Somfy
- * radio. Caller must hold the CHIP stack lock. Does NOT persist the store —
- * caller decides when.
+ * WindowCovering delegate with CHIP (required for an endpoint created after
+ * esp_matter::start(), whose one-shot delegate-init callback has already run).
+ * Caller must hold the CHIP stack lock. Does not persist the store.
  * @return true on success.
  */
 static bool wc_endpoint_up(int idx)

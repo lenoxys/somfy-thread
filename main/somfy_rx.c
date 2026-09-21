@@ -3,9 +3,8 @@
 // CC1101's demodulated OOK stream; the ISR accumulates edge-to-edge durations
 // into a bounded burst buffer and hands each burst to the level-agnostic decoder
 // (somfy_decode_pulses). This mirrors ESPSomfy-RTS: continuous band noise never
-// forms a valid sync run so it is silently discarded, and there is no fixed
-// hardware capture buffer to overflow (the earlier RMT RX path logged an ISR
-// error per overflow, flooding the shared console).
+// forms a valid sync run so it is silently discarded, and an edge-timed burst
+// buffer has no fixed capture window to overflow.
 #include "somfy_rx.h"
 #include "somfy_frame.h"
 #include "esp_log.h"
