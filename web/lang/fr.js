@@ -152,7 +152,7 @@ export default {
   "matter.paired": "Déjà ajouté à {n} écosystème(s) Matter. Pour l'ajouter à une autre application ou hub, ouvrez une nouvelle fenêtre d'appairage.",
   "matter.addAnother": "Ajouter à un autre écosystème",
   "matter.reset": "Réinitialiser l'appairage",
-  "matter.open": "Afficher le code d'appairage",
+  "matter.open": "Démarrer l'appairage",
   "matter.modalTitle": "Ajouter via Matter",
   "matter.close": "Fermer",
   "matter.stepScan": "Scannez le code QR (ou saisissez le code) dans votre application ou box",

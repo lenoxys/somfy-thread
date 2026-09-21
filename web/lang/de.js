@@ -131,7 +131,7 @@ export default {
   "matter.paired": "Bereits zu {n} Matter-Ökosystem(en) hinzugefügt. Um es einer weiteren App oder einem weiteren Hub hinzuzufügen, öffnen Sie ein neues Kopplungsfenster.",
   "matter.addAnother": "Zu weiterem Ökosystem hinzufügen",
   "matter.reset": "Kopplung zurücksetzen",
-  "matter.open": "Kopplungscode anzeigen",
+  "matter.open": "Kopplung starten",
   "matter.modalTitle": "Über Matter hinzufügen",
   "matter.close": "Schließen",
   "matter.stepScan": "Scannen Sie den QR-Code (oder geben Sie den Code ein) in Ihrer App oder Ihrem Hub",

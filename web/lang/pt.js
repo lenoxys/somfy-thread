@@ -129,7 +129,7 @@ export default {
   "matter.paired": "Já adicionado a {n} ecossistema(s) Matter. Para o adicionar a outra aplicação ou hub, abra uma nova janela de emparelhamento.",
   "matter.addAnother": "Adicionar a outro ecossistema",
   "matter.reset": "Repor emparelhamento",
-  "matter.open": "Mostrar código de emparelhamento",
+  "matter.open": "Iniciar emparelhamento",
   "matter.modalTitle": "Adicionar por Matter",
   "matter.close": "Fechar",
   "matter.stepScan": "Leia o código QR (ou introduza o código) na sua aplicação ou hub",

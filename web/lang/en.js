@@ -151,7 +151,7 @@ export default {
   "matter.paired": "Already added to {n} Matter ecosystem(s). To add it to another app or hub, open a new pairing window.",
   "matter.addAnother": "Add to another ecosystem",
   "matter.reset": "Reset pairing",
-  "matter.open": "Show pairing code",
+  "matter.open": "Start pairing",
   "matter.modalTitle": "Add over Matter",
   "matter.close": "Close",
   "matter.stepScan": "Scan the QR code (or enter the code) in your app or hub",

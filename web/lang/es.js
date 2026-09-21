@@ -131,7 +131,7 @@ export default {
   "matter.paired": "Ya añadido a {n} ecosistema(s) Matter. Para añadirlo a otra app o hub, abre una nueva ventana de emparejamiento.",
   "matter.addAnother": "Añadir a otro ecosistema",
   "matter.reset": "Restablecer emparejamiento",
-  "matter.open": "Mostrar código de emparejamiento",
+  "matter.open": "Iniciar emparejamiento",
   "matter.modalTitle": "Añadir por Matter",
   "matter.close": "Cerrar",
   "matter.stepScan": "Escanea el código QR (o introduce el código) en tu app o hub",

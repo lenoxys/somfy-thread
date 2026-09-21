@@ -130,7 +130,7 @@ export default {
   "matter.paired": "已添加到 {n} 个 Matter 生态系统。要将它添加到另一个 App 或中枢，请打开一个新的配对窗口。",
   "matter.addAnother": "添加到另一个生态系统",
   "matter.reset": "重置配对",
-  "matter.open": "显示配对码",
+  "matter.open": "开始配对",
   "matter.modalTitle": "通过 Matter 添加",
   "matter.close": "关闭",
   "matter.stepScan": "在您的应用或中枢中扫描二维码（或输入配对码）",
