@@ -21,6 +21,7 @@ export default {
   "compat.warn": "Ceci pilote uniquement les stores Somfy RTS (433 MHz). Somfy io-homecontrol n'est pas pris en charge — vérifiez que vos moteurs sont bien en RTS avant de continuer.",
   "board.recheck": "Revérifier la carte",
   "board.portHint": "Dans la liste des ports du navigateur, choisissez <strong>USB JTAG/serial debug unit</strong> — c'est l'USB natif de l'ESP32-C6. Sur les cartes équipées d'un pont USB-vers-UART, il apparaît plutôt sous <strong>CP210x</strong>, <strong>CP2104</strong> ou <strong>CH340</strong>. Ignorez les entrées Bluetooth et audio. Vous ne savez pas laquelle c'est ? Cliquez une fois sur Connecter la carte débranchée pour voir la liste, annulez, branchez la carte, puis recliquez — la nouvelle entrée est votre carte.",
+  "board.wiring": "Câblage & brochage →",
   "status.disconnected": "Déconnecté",
   "status.connected": "Connecté",
 

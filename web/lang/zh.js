@@ -20,6 +20,7 @@ export default {
   "compat.warn": "这仅能控制 Somfy RTS 窗帘（433 MHz），不支持 Somfy io-homecontrol——继续之前请确认你的电机是 RTS 型号。",
   "board.recheck": "重新检查开发板",
   "board.portHint": "在浏览器的端口列表中，选择 <strong>USB JTAG/serial debug unit</strong>——这是 ESP32-C6 的原生 USB。如果开发板带有 USB 转 UART 芯片，它会显示为 <strong>CP210x</strong>、<strong>CP2104</strong> 或 <strong>CH340</strong>。请忽略 Bluetooth 和音频相关的项。不确定是哪一项？先在拔掉开发板的情况下点一次连接查看列表，取消，插上开发板，再点一次——新出现的那一项就是你的开发板。",
+  "board.wiring": "接线与引脚 →",
   "status.disconnected": "已断开",
   "status.connected": "已连接",
 

@@ -287,6 +287,7 @@ tr.disabled .ctrls, tr.disabled input.name { opacity: .5; }
 .qrimg { display: block; width: 260px; height: auto; margin: .75rem auto; border-radius: 8px;
   background: #fff; padding: .5rem; image-rendering: pixelated; }
 .qr { word-break: break-all; font-family: ui-monospace, monospace; font-size: .8rem; color: var(--muted); }
+.pinout { display: block; width: 100%; max-width: 40rem; height: auto; margin: 1rem auto; border-radius: 8px; }
 
 /* install page */
 .bar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .75rem 0; }

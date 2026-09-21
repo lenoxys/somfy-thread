@@ -32,7 +32,7 @@ Each shade exposes its own WindowCovering endpoint with a stable Matter identity
 
 ## Hardware
 
-Waveshare ESP32-C6-Zero + E07-M1101D (CC1101, 433 MHz). Full wiring, pin map, and radio notes: **[docs/HARDWARE.md](docs/HARDWARE.md)**.
+Waveshare ESP32-C6-Zero + E07-M1101D (CC1101, 433 MHz). Full wiring, pin map, and radio notes: **[hardware & pinout](https://lenoxys.github.io/somfy-thread/docs/hardware.html)**.
 
 ## Build from source
 

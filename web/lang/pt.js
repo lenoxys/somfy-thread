@@ -19,6 +19,7 @@ export default {
   "compat.warn": "Isto controla apenas estores Somfy RTS (433 MHz). Não suporta o Somfy io-homecontrol — confirme que os seus motores são RTS antes de continuar.",
   "board.recheck": "Verificar placa novamente",
   "board.portHint": "Na lista de portas do navegador, escolha <strong>USB JTAG/serial debug unit</strong> — é o USB nativo do ESP32-C6. Nas placas com adaptador USB-para-UART aparece antes como <strong>CP210x</strong>, <strong>CP2104</strong> ou <strong>CH340</strong>. Ignore as entradas de Bluetooth e de áudio. Não sabe qual é? Clique em Ligar uma vez com a placa desligada para ver a lista, cancele, ligue a placa e clique de novo — a nova entrada é a sua placa.",
+  "board.wiring": "Ligações e pinos →",
   "status.disconnected": "Desligado",
   "status.connected": "Ligado",
 

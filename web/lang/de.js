@@ -21,6 +21,7 @@ export default {
   "compat.warn": "Dies steuert ausschließlich Somfy-RTS-Rollos (433 MHz). Somfy io-homecontrol wird nicht unterstützt – prüfen Sie vor dem Fortfahren, dass Ihre Motoren RTS sind.",
   "board.recheck": "Board erneut prüfen",
   "board.portHint": "Wählen Sie in der Portliste des Browsers <strong>USB JTAG/serial debug unit</strong> – das ist der native USB-Anschluss des ESP32-C6. Auf Boards mit USB-zu-UART-Bridge erscheint es stattdessen als <strong>CP210x</strong>, <strong>CP2104</strong> oder <strong>CH340</strong>. Bluetooth- und Audio-Einträge ignorieren. Unsicher, welcher Eintrag es ist? Klicken Sie bei abgezogenem Board einmal auf Verbinden, um die Liste zu sehen, brechen Sie ab, stecken Sie das Board an und klicken Sie erneut – der neue Eintrag ist Ihr Board.",
+  "board.wiring": "Verkabelung & Pinbelegung →",
   "status.disconnected": "Getrennt",
   "status.connected": "Verbunden",
 

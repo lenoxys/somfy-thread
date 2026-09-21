@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Unlicense -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<title>somfy-thread — hardware</title>
+<link rel="icon" href="../light.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">somfy<span>-thread</span></span>
+  <span class="muted">hardware</span>
+  <a class="topbtn txt push" href="../" title="Back to setup">← Setup</a>
+  <a class="topbtn txt" href="./" title="Developer guide">Console</a>
+  <a class="topbtn txt" href="https://github.com/lenoxys/somfy-thread" target="_blank" rel="noopener" title="GitHub">GitHub</a>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Hardware</h2>
+    <p class="muted">
+      Waveshare <strong>ESP32-C6-Zero</strong> (native USB-C) wired to an
+      <strong>E07-M1101D (CC1101, 433 MHz)</strong> radio. The E07 runs at
+      <strong>3.3 V — never 5 V</strong>. Attach a 433 MHz antenna to the E07.
+    </p>
+    <img class="pinout" src="esp32-c6-zero-pinout.webp" alt="ESP32-C6-Zero pinout">
+    <table>
+      <thead><tr><th>E07 pin</th><th>Signal</th><th>ESP32-C6-Zero</th></tr></thead>
+      <tbody>
+        <tr><td>1 · GND</td><td>Ground</td><td>GND</td></tr>
+        <tr><td>2 · VCC</td><td>3.3 V power</td><td>3V3(OUT)</td></tr>
+        <tr><td>3 · GDO0</td><td>TX data out</td><td>GP22</td></tr>
+        <tr><td>4 · CSN</td><td>SPI chip select</td><td>GP21</td></tr>
+        <tr><td>5 · SCK</td><td>SPI clock</td><td>GP19</td></tr>
+        <tr><td>6 · MOSI</td><td>SPI data in</td><td>GP4</td></tr>
+        <tr><td>7 · MISO/GDO1</td><td>SPI data out</td><td>GP20</td></tr>
+        <tr><td>8 · GDO2</td><td>RX data out</td><td>GP5</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">
+      Both GDO lines are wired: <strong>GDO0 (GP22) transmits</strong> and
+      <strong>GDO2 (GP5) receives</strong> — receive is what lets the board hear your
+      existing remotes for discovery and keep rolling codes in sync. GP4/GP5 are the
+      external-JTAG pins, free here because the console runs over the internal
+      USB-Serial-JTAG.
+    </p>
+    <div class="callout">
+      Default carrier <strong>433.42 MHz</strong> — a single device-wide radio setting,
+      tunable from the setup page. A real crystal drifts, so sweep 433.36–433.44 if a
+      motor stays silent.
+    </div>
+    <p class="muted">Reference: E07-M1101D-SMA manufacturer datasheet (pin definition and MCU wiring).</p>
+    <img class="pinout" src="e07-m1101d.webp" alt="E07-M1101D-SMA specifications, pin definition, and MCU wiring diagram">
+  </section>
+</main>
+</body>
+</html>

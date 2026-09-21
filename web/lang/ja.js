@@ -20,6 +20,7 @@ export default {
   "compat.warn": "これは Somfy RTS ブラインド専用です（433 MHz）。Somfy io-homecontrol には対応していません。続ける前に、お使いのモーターが RTS であることをご確認ください。",
   "board.recheck": "ボードを再確認",
   "board.portHint": "ブラウザのポート一覧では <strong>USB JTAG/serial debug unit</strong> を選んでください。これが ESP32-C6 のネイティブ USB です。USB-UART ブリッジ搭載のボードでは代わりに <strong>CP210x</strong>、<strong>CP2104</strong>、<strong>CH340</strong> と表示されます。Bluetooth やオーディオの項目は無視してください。どれか分からないときは、ボードを抜いた状態で一度「接続」を押して一覧を確認し、キャンセルしてからボードを挿し、もう一度押してください。新しく増えた項目がお使いのボードです。",
+  "board.wiring": "配線とピン配置 →",
   "status.disconnected": "未接続",
   "status.connected": "接続済み",
 

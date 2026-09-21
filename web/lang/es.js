@@ -21,6 +21,7 @@ export default {
   "compat.warn": "Esto solo controla persianas Somfy RTS (433 MHz). No es compatible con Somfy io-homecontrol: comprueba que tus motores sean RTS antes de continuar.",
   "board.recheck": "Volver a comprobar la placa",
   "board.portHint": "En la lista de puertos del navegador, elige <strong>USB JTAG/serial debug unit</strong>: es el USB nativo de la ESP32-C6. En placas con un puente USB-a-UART aparece como <strong>CP210x</strong>, <strong>CP2104</strong> o <strong>CH340</strong>. Ignora las entradas de Bluetooth y de audio. ¿No sabes cuál es? Pulsa Conectar una vez con la placa desconectada para ver la lista, cancela, conecta la placa y vuelve a pulsar: la entrada nueva es tu placa.",
+  "board.wiring": "Cableado y pines →",
   "status.disconnected": "Desconectado",
   "status.connected": "Conectado",
 
