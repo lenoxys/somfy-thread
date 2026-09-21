@@ -18,7 +18,7 @@ export function flashRanges(len, nvs = NVS) {
   return ranges;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (typeof process !== "undefined" && import.meta.url === `file://${process.argv[1]}`) {
   const assert = (c, m) => { if (!c) throw new Error(m); };
   const rs = flashRanges(0x200000);
   assert(rs.length === 2, "two parts around nvs");
