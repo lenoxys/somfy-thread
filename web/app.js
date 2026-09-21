@@ -77,14 +77,17 @@ let flashing = false;
  * fetching it in the browser is otherwise blocked). The merged image is split
  * around the nvs partition (fwslice) so a normal flash keeps the fleet; the
  * "erase everything" checkbox instead wipes all of flash (fresh/first install).
- * esptool-js never attaches the SPI flash, so on the ESP32-C6's in-package
- * flash the JEDEC id reads 0 and writes silently go nowhere; flashSpiAttach(0)
- * after main() (what esptool.py does) makes the flash respond, and the id is
- * then verified so a non-responding chip aborts instead of faking success.
- * The post-flash reboot uses the USB-JTAG reset sequence for the ESP32-C6's
- * native USB Serial/JTAG (PID 0x1001) and the classic RTS-pin reset for a
- * USB-to-UART bridge; the RTS reset does not reboot the native port, which would
- * leave the chip in the flasher stub and silent to every serial command.
+ * On the ESP32-C6's native USB Serial/JTAG (PID 0x1001) the flashing baud is
+ * left at 115200 so esptool-js skips its changeBaud step: reconfiguring the
+ * WebSerial baud on the native port desyncs the stub and every flash read then
+ * returns 0, so writes silently go nowhere. USB-JTAG throughput is USB-limited,
+ * not baud-limited, so the nominal baud costs nothing; a USB-to-UART bridge
+ * keeps 460800. After main() the SPI flash is attached and its JEDEC id is
+ * verified, so a non-responding chip aborts instead of faking success.
+ * The post-flash reboot uses the USB-JTAG reset sequence for the native port
+ * and the classic RTS-pin reset for a USB-to-UART bridge; the RTS reset does not
+ * reboot the native port, which would leave the chip in the flasher stub and
+ * silent to every serial command.
  */
 async function flashSelected() {
   if (flashing) return;
@@ -112,7 +115,8 @@ async function flashSelected() {
     await releasePort();
     const mod = await esptool();
     transport = new mod.Transport(dev, false);
-    const loader = new mod.ESPLoader({ transport, baudrate: 460800, romBaudrate: 115200, terminal: term });
+    const usbJtag = (transport.getPid && transport.getPid()) === 0x1001;
+    const loader = new mod.ESPLoader({ transport, baudrate: usbJtag ? 115200 : 460800, romBaudrate: 115200, terminal: term });
     await loader.main();
     await loader.flashSpiAttach(0);
     const flashId = await loader.readFlashId();
@@ -125,8 +129,7 @@ async function flashSelected() {
       reportProgress: (i, written, total) => bar(Math.round(((i + (total ? written / total : 0)) / fileArray.length) * 100)),
     });
     status("flash.resetting");
-    const pid = transport.getPid && transport.getPid();
-    if (pid === 0x1001) { log("reset: USB-JTAG sequence"); await new mod.UsbJtagSerialReset(transport).reset(); }
+    if (usbJtag) { log("reset: USB-JTAG sequence"); await new mod.UsbJtagSerialReset(transport).reset(); }
     else { log("reset: classic hard reset"); await loader.after("hard_reset"); }
     bar(100);
     ok = true;
