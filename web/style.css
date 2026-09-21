@@ -143,6 +143,7 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 
 /* wizard nav */
 .wiznav { display: flex; justify-content: space-between; gap: .5rem; margin: 1rem 0; }
+.wiznav #next { margin-left: auto; }
 
 /* connection status */
 .status { display: inline-flex; align-items: center; gap: .45rem; font-size: .9rem; color: var(--muted); }
