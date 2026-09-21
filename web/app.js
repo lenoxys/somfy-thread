@@ -92,7 +92,7 @@ async function flashSelected() {
   const term = { clean() {}, writeLine(d) { log(d); }, write(d) { log(String(d).replace(/\r?\n$/, "")); } };
   bar(0);
   status("flash.connecting");
-  let transport;
+  let transport, ok = false;
   try {
     const src = new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
     const buf = new Uint8Array(await (await fetch(src)).arrayBuffer());
@@ -112,7 +112,7 @@ async function flashSelected() {
     status("flash.resetting");
     await loader.after("hard_reset");
     bar(100);
-    status("flash.done");
+    ok = true;
   } catch (e) {
     const msg = e && e.message ? e.message : String(e);
     log("flash error: " + msg);
@@ -120,8 +120,28 @@ async function flashSelected() {
   } finally {
     try { if (transport) await transport.disconnect(); } catch (e2) { /* port re-enumerated on reset */ }
     flashing = false;
-    $("flash").disabled = false;
   }
+  if (ok) await waitReconnect(status);
+  else $("flash").disabled = false;
+}
+
+/**
+ * After a successful flash the board hard-resets and its USB re-enumerates.
+ * Hide the flash controls and reconnect to the same already-granted port (no
+ * picker), retrying while it comes back up; connect() then re-fingerprints the
+ * firmware and re-enables Next. Falls back to the manual "recheck" button if it
+ * doesn't reappear.
+ */
+async function waitReconnect(status) {
+  $("flashControls").hidden = true;
+  status("flash.reconnecting");
+  for (let i = 0; i < 15; i++) {
+    await sleep(1000);
+    const dev = lastPort || (await navigator.serial.getPorts())[0];
+    if (!dev) continue;
+    try { await connect(dev); return; } catch (e) { /* not back yet, retry */ }
+  }
+  status("flash.reconnectManual");
 }
 
 /** Fetch published releases (newest first) into `releases`; empty on failure. */
@@ -1020,10 +1040,14 @@ function addMotor() {
 
 /* ── actions ──────────────────────────────────────────────────────────── */
 
-/** Open the serial port, start reading, then fingerprint the firmware. */
-async function connect() {
+/**
+ * Open the serial port, start reading, then fingerprint the firmware. Pass a
+ * pre-granted port (from getPorts, e.g. the post-flash reconnect) to reuse it
+ * without a second picker; omit to prompt the browser's port chooser.
+ */
+async function connect(existing) {
   if (!("serial" in navigator)) { alert(t("alert.webserial")); return; }
-  port = await navigator.serial.requestPort();
+  port = existing || await navigator.serial.requestPort();
   lastPort = port;
   await port.open({ baudRate: 115200 });
   writer = port.writable.getWriter();
@@ -1032,6 +1056,7 @@ async function connect() {
   $("dot").classList.add("on");
   $("statusText").textContent = t("status.connected");
   $("connect").disabled = true;
+  $("portHint").hidden = true;
   $("disconnModal").hidden = true;
   await detect();
 }
@@ -1057,6 +1082,7 @@ function onDisconnect() {
   $("statusText").textContent = t("status.disconnected");
   $("connect").disabled = false;
   $("connect").textContent = t("board.recheck");
+  $("portHint").hidden = false;
   $("discoverPanel").hidden = true;
   $("linkModal").hidden = true;
   $("disconnModal").hidden = false;
@@ -1095,6 +1121,7 @@ async function releasePort() {
  */
 async function detect() {
   const det = $("detect");
+  $("flasher").hidden = true;
   det.hidden = false;
   det.textContent = t("detect.checking");
   let ver = null, proto = 0;
@@ -1130,8 +1157,7 @@ async function detect() {
   const outdated = latest && !norm(ver).startsWith(norm(latest)) && !norm(latest).startsWith(norm(ver));
   det.textContent = "";
   det.append(outdated ? t("detect.outdated", { ver, latest }) : t("detect.current", { ver }));
-  det.append(mkBtn(t("detect.continue"), () => setStep(stepIn(1)), "primary small"));
-  if (outdated) det.append(mkBtn(t("detect.update"), () => beginFlash(), "small"));
+  det.append(mkBtn(t(outdated ? "detect.update" : "detect.reflash"), () => beginFlash(), "small"));
   $("next").disabled = false;
 }
 
@@ -1139,6 +1165,9 @@ async function detect() {
 async function beginFlash() {
   await releasePort();
   populateReleaseSelect();
+  $("flashControls").hidden = false;
+  $("flashProgress").hidden = true;
+  $("flashBar").style.width = "0%";
   $("flasher").hidden = false;
 }
 

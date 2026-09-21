@@ -37,6 +37,8 @@ export default {
   "flash.writing": "Écriture du firmware…",
   "flash.resetting": "Redémarrage de la carte…",
   "flash.done": "Terminé — firmware flashé.",
+  "flash.reconnecting": "Flashé — attente du redémarrage de la carte…",
+  "flash.reconnectManual": "Flashé. Cliquez sur « Revérifier la carte » pour reconnecter.",
   "flash.failed": "Échec du flashage : {err}",
 
   "detect.checking": "Vérification de la carte…",
@@ -44,8 +46,8 @@ export default {
   "detect.outdated": "somfy-thread {ver} installé — {latest} disponible. ",
   "detect.current": "somfy-thread {ver} — à jour. ",
   "detect.incompatible": "somfy-thread {ver} est trop ancien pour ce configurateur — mettez à jour le firmware pour continuer. ",
-  "detect.continue": "Passer à la configuration",
   "detect.update": "Mettre à jour le firmware",
+  "detect.reflash": "Reflasher le firmware",
 
   "release.none": "aucune version publiée pour l'instant",
   "release.prerelease": " (pré-version)",

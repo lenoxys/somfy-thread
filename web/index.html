@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' blob: https://api.github.com https://github.com https://objects.githubusercontent.com https://release-assets.githubusercontent.com; base-uri 'none'; form-action 'none'">
 <title>somfy-thread — setup</title>
+<link rel="icon" href="./light.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -44,17 +45,19 @@
       <button id="connect" class="btn primary" data-i18n="board.connect"></button>
       <span class="status"><span class="dot" id="dot"></span><span id="statusText" data-i18n="status.disconnected"></span></span>
     </div>
-    <p class="muted" data-i18n-html="board.portHint"></p>
+    <p class="muted" id="portHint" data-i18n-html="board.portHint"></p>
     <div id="detect" class="callout" hidden></div>
     <div id="flasher" hidden>
-      <div class="bar">
-        <label for="release" data-i18n="flasher.versionLabel"></label>
-        <select id="release"><option data-i18n="flasher.loading"></option></select>
-        <button type="button" id="refreshReleases" class="iconbtn" data-icon="refresh"></button>
+      <div id="flashControls">
+        <div class="bar">
+          <label for="release" data-i18n="flasher.versionLabel"></label>
+          <select id="release"><option data-i18n="flasher.loading"></option></select>
+          <button type="button" id="refreshReleases" class="iconbtn" data-icon="refresh"></button>
+        </div>
+        <label class="wipe"><input type="checkbox" id="wipeAll"><span data-i18n="flasher.wipe"></span></label>
+        <p class="muted" data-i18n="flasher.wipeHint"></p>
+        <button type="button" id="flash" class="btn primary" data-i18n="flasher.flash" disabled></button>
       </div>
-      <label class="wipe"><input type="checkbox" id="wipeAll"><span data-i18n="flasher.wipe"></span></label>
-      <p class="muted" data-i18n="flasher.wipeHint"></p>
-      <button type="button" id="flash" class="btn primary" data-i18n="flasher.flash" disabled></button>
       <div id="flashProgress" class="progress" hidden>
         <div class="progress-track"><div id="flashBar" class="progress-bar"></div></div>
         <p class="muted" id="flashStatus"></p>

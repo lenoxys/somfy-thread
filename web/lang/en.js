@@ -36,6 +36,8 @@ export default {
   "flash.writing": "Writing firmware…",
   "flash.resetting": "Restarting the board…",
   "flash.done": "Done — firmware flashed.",
+  "flash.reconnecting": "Flashed — waiting for the board to restart…",
+  "flash.reconnectManual": "Flashed. Click \"Recheck board\" to reconnect.",
   "flash.failed": "Flashing failed: {err}",
 
   "detect.checking": "Checking the board…",
@@ -43,8 +45,8 @@ export default {
   "detect.outdated": "somfy-thread {ver} installed — {latest} available. ",
   "detect.current": "somfy-thread {ver} — up to date. ",
   "detect.incompatible": "somfy-thread {ver} is too old for this configurator — update the firmware to continue. ",
-  "detect.continue": "Continue to config",
   "detect.update": "Update firmware",
+  "detect.reflash": "Reflash firmware",
 
   "release.none": "no releases published yet",
   "release.prerelease": " (pre-release)",

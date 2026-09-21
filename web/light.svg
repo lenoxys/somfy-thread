@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="somfy-thread">
+  <rect x="5" y="4" width="22" height="20" rx="2" fill="none" stroke="#FFC72C" stroke-width="2.4"/>
+  <line x1="7" y1="10" x2="25" y2="10" stroke="#FFC72C" stroke-width="2.4" stroke-linecap="round"/>
+  <line x1="7" y1="15" x2="25" y2="15" stroke="#FFC72C" stroke-width="2.4" stroke-linecap="round"/>
+  <line x1="16" y1="24" x2="16" y2="29" stroke="#FFC72C" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="16" cy="29.5" r="1.6" fill="#FFC72C"/>
+</svg>
