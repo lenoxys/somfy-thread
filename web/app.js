@@ -1117,6 +1117,7 @@ function onDisconnect() {
   $("portHint").hidden = false;
   $("discoverPanel").hidden = true;
   $("linkModal").hidden = true;
+  $("flashModal").hidden = true;
   $("disconnModal").hidden = false;
   gateNext();
 }
