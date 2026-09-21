@@ -4,7 +4,7 @@
 # same-origin and makes no external request at runtime. Run this before
 # serving/deploying web/. Pin every version.
 set -e
-ESPTOOL_VER=0.6.1
+ESPTOOL_VER=0.7.0
 QRC_VER=1.4.4
 DIR=$(dirname "$0")
 

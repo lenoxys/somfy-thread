@@ -77,17 +77,16 @@ let flashing = false;
  * fetching it in the browser is otherwise blocked). The merged image is split
  * around the nvs partition (fwslice) so a normal flash keeps the fleet; the
  * "erase everything" checkbox instead wipes all of flash (fresh/first install).
+ * After main() the SPI flash is attached and its JEDEC id verified, so a
+ * non-responding chip aborts with flash.noFlash instead of faking success
+ * (esptool-js only warns on a 0 id and would otherwise write to a dead channel).
  * On the ESP32-C6's native USB Serial/JTAG (PID 0x1001) the flashing baud is
- * left at 115200 so esptool-js skips its changeBaud step: reconfiguring the
- * WebSerial baud on the native port desyncs the stub and every flash read then
- * returns 0, so writes silently go nowhere. USB-JTAG throughput is USB-limited,
- * not baud-limited, so the nominal baud costs nothing; a USB-to-UART bridge
- * keeps 460800. After main() the SPI flash is attached and its JEDEC id is
- * verified, so a non-responding chip aborts instead of faking success.
- * The post-flash reboot uses the USB-JTAG reset sequence for the native port
- * and the classic RTS-pin reset for a USB-to-UART bridge; the RTS reset does not
- * reboot the native port, which would leave the chip in the flasher stub and
- * silent to every serial command.
+ * left at 115200 so main() skips its changeBaud step: the baud is nominal over
+ * USB CDC and esptool.py likewise skips it there; a USB-to-UART bridge keeps
+ * 460800. The post-flash reboot uses the USB-JTAG reset sequence for the native
+ * port and the classic RTS-pin reset for a USB-to-UART bridge; the RTS reset
+ * does not reboot the native port, which would leave the chip in the flasher
+ * stub and silent to every serial command.
  */
 async function flashSelected() {
   if (flashing) return;
