@@ -369,6 +369,8 @@ function gateNext() {
  * so the wizard gates the shade step on a working radio.
  */
 async function loadRadio() {
+  $("radioListen").disabled = false;
+  $("next").classList.remove("bounce");
   const line = await request("radio", (l) => l.startsWith("{"));
   const st = JSON.parse(line);
   radioReady = !!st.rf;
@@ -468,6 +470,8 @@ async function scanAndListen() {
         $("radioFreq").value = fs;
         radioReady = true;
         gateNext();
+        $("radioListen").disabled = true;
+        $("next").classList.add("bounce");
         return;
       } catch (e) { /* nothing at this step — try the next */ }
     }
