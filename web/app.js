@@ -1462,10 +1462,9 @@ function renderMatterState(stat) {
   const fabrics = stat.fabrics || 0;
   const thread = stat.thread;
   const st = $("matterStatus");
-  const btn = $("pairBtn");
+  const btn = $("matterOpen");
   st.hidden = false;
   st.classList.remove("bad");
-  $("matterProgress").hidden = false;
   setMStep("scan", fabrics > 0 ? "done" : stat.win ? "active" : "");
   setMStep("matter", fabrics > 0 ? "done" : "");
   const threadRow = document.querySelector('#matterProgress [data-mstep="thread"]');
@@ -1478,14 +1477,11 @@ function renderMatterState(stat) {
   if (fabrics > 0) {
     st.textContent = t("matter.paired", { n: fabrics });
     btn.textContent = t("matter.addAnother");
-    btn.hidden = false;
-    hidePairing();
     showFabricDetail().catch((e) => log("ERR " + e.message));
   } else {
     st.textContent = t("matter.unpaired");
-    btn.hidden = true;
+    btn.textContent = t("matter.open");
     $("matterFabrics").hidden = true;
-    showPairing().catch((e) => log("ERR " + e.message));
   }
 }
 
@@ -1526,7 +1522,6 @@ async function pollMatterOnce() {
 async function loadMatter() {
   matterStat = "";
   hidePairing();
-  $("matterModal").hidden = false;
   const st = $("matterStatus");
   st.hidden = false;
   st.classList.remove("bad");
@@ -1557,6 +1552,8 @@ async function showPairing() {
   }
   $("paircode").textContent = formatManual(manual);
   $("matterLabel").hidden = false;
+  $("matterProgress").hidden = false;
+  $("matterModal").hidden = false;
 }
 
 /* ── wiring ───────────────────────────────────────────────────────────── */
@@ -1613,8 +1610,7 @@ $("scanCancel").addEventListener("click", () => cancelScan());
 $("radioPower").addEventListener("change", (e) => save(`power ${e.target.value}`));
 $("radioRxbw").addEventListener("change", (e) => save(`rxbw ${e.target.value}`));
 $("radioScan").addEventListener("click", () => scanBand().catch((e) => log("ERR " + e.message)));
-$("pairBtn").addEventListener("click", () => showPairing().catch((e) => log("ERR " + e.message)));
-$("matterOpen").addEventListener("click", () => loadMatter().catch((e) => log("ERR " + e.message)));
+$("matterOpen").addEventListener("click", () => showPairing().catch((e) => log("ERR " + e.message)));
 $("matterModalClose").addEventListener("click", () => { $("matterModal").hidden = true; });
 $("matterReset").addEventListener("click", async () => {
   if (await askConfirm(t("confirm.resetMatter"))) send("reset");

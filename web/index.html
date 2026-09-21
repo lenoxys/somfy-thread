@@ -180,17 +180,18 @@
     <h2 data-i18n="matter.title"></h2>
     <p class="muted" data-i18n="matter.intro"></p>
     <div class="callout" data-i18n="matter.help"></div>
+    <div id="matterStatus" class="callout" hidden></div>
+    <p id="matterFabrics" class="muted" hidden></p>
     <div class="bar">
       <button id="matterOpen" class="btn primary" data-i18n="matter.open"></button>
+      <button id="matterReset" class="btn danger" data-i18n="matter.reset"></button>
     </div>
   </section>
 
-  <!-- Matter pairing + live onboarding modal (opens on the Matter step) -->
+  <!-- Matter pairing + live onboarding modal (opens when a pairing button is clicked) -->
   <div id="matterModal" class="modal-overlay" hidden>
     <div class="modal-card modal-wide">
       <h2 data-i18n="matter.modalTitle"></h2>
-      <div id="matterStatus" class="callout" hidden></div>
-      <p id="matterFabrics" class="muted" hidden></p>
       <div id="matterLabel" class="matter-label" hidden>
         <div class="matter-brand">
           <span class="matter-mark" data-icon="matter" aria-hidden="true"></span>
@@ -205,9 +206,7 @@
         <li data-mstep="thread" hidden><span class="pstep-dot"></span><span data-i18n="matter.stepThread"></span></li>
       </ol>
       <div class="bar">
-        <button id="pairBtn" class="btn" hidden></button>
-        <button id="matterReset" class="btn danger small" data-i18n="matter.reset"></button>
-        <button id="matterModalClose" class="btn small" data-i18n="matter.close"></button>
+        <button id="matterModalClose" class="btn" data-i18n="matter.close"></button>
       </div>
     </div>
   </div>
