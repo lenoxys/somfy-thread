@@ -44,6 +44,8 @@ export default {
   "flash.reconnectManual": "Grabado. Pulsa «Volver a comprobar la placa» para reconectar.",
   "flash.failed": "La grabación ha fallado: {err}",
   "flash.noFlash": "El chip de memoria de la placa no ha respondido: desconecta y vuelve a conectar la placa e inténtalo de nuevo.",
+  "flash.notHosted": "El firmware de esta versión aún no está en el sitio: puede que todavía se esté compilando. Vuelve a intentarlo en unos minutos.",
+  "flash.badImage": "El firmware descargado no superó la verificación: no se flasheará. Puede que todavía se esté compilando; vuelve a intentarlo en unos minutos.",
   "flash.close": "Cerrar",
 
   "detect.checking": "Comprobando la placa…",
@@ -57,6 +59,7 @@ export default {
   "release.none": "aún no se ha publicado ninguna versión",
   "release.prerelease": " (versión preliminar)",
   "release.noBin": "Esta versión no tiene un archivo de firmware .bin.",
+  "release.notHostedYet": "Esta versión aún no se puede flashear desde aquí (todavía se está publicando): usa la descarga de abajo mientras tanto.",
   "release.download": "Descargar {name}",
   "release.fallbackPrefix": "Firefox/Safari: ",
   "release.fallbackSuffix": " y grábalo en el desplazamiento 0 con esptool.",

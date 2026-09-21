@@ -43,6 +43,8 @@ export default {
   "flash.reconnectManual": "Flashed. Click \"Recheck board\" to reconnect.",
   "flash.failed": "Flashing failed: {err}",
   "flash.noFlash": "The board's flash chip didn't respond — unplug and replug the board, then try again.",
+  "flash.notHosted": "This version's firmware isn't on the site yet — it may still be building. Try again in a few minutes.",
+  "flash.badImage": "The downloaded firmware failed verification — not flashing. It may still be building; try again in a few minutes.",
   "flash.close": "Close",
 
   "detect.checking": "Checking the board…",
@@ -56,6 +58,7 @@ export default {
   "release.none": "no releases published yet",
   "release.prerelease": " (pre-release)",
   "release.noBin": "This release has no .bin firmware asset.",
+  "release.notHostedYet": "This version isn't ready to flash from here yet (still publishing) — use the download below meanwhile.",
   "release.download": "Download {name}",
   "release.fallbackPrefix": "Firefox/Safari: ",
   "release.fallbackSuffix": " and flash at offset 0 with esptool.",

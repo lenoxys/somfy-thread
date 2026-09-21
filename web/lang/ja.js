@@ -43,6 +43,8 @@ export default {
   "flash.reconnectManual": "書き込み完了。「ボードを再確認」をクリックして再接続してください。",
   "flash.failed": "書き込みに失敗しました: {err}",
   "flash.noFlash": "ボードのフラッシュチップが応答しませんでした。ボードを抜いて挿し直し、もう一度お試しください。",
+  "flash.notHosted": "このバージョンのファームウェアはまだサイトにありません。ビルド中の可能性があります。数分後にもう一度お試しください。",
+  "flash.badImage": "ダウンロードしたファームウェアの検証に失敗しました。フラッシュを中止します。ビルド中の可能性があります。数分後にもう一度お試しください。",
   "flash.close": "閉じる",
 
   "detect.checking": "ボードを確認しています…",
@@ -56,6 +58,7 @@ export default {
   "release.none": "まだ公開されたリリースはありません",
   "release.prerelease": "（プレリリース）",
   "release.noBin": "このリリースには .bin ファームウェアアセットがありません。",
+  "release.notHostedYet": "このバージョンはまだここからフラッシュできません（公開処理中）。それまでは下のダウンロードをご利用ください。",
   "release.download": "{name} をダウンロード",
   "release.fallbackPrefix": "Firefox/Safari の場合: ",
   "release.fallbackSuffix": " をダウンロードし、esptool でオフセット 0 に書き込んでください。",

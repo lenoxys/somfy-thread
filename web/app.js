@@ -49,22 +49,53 @@ function firmwareAsset(release) {
   return (release.assets || []).find((x) => x.name.endsWith(".bin")) || null;
 }
 
+/**
+ * SHA-256 the downloaded image and compare it to the release asset's published
+ * digest, so a truncated download or a file that does not match the selected
+ * release is never flashed. `digest` is the GitHub asset digest ("sha256:<hex>");
+ * a release without one (older builds) passes on the ESP magic-byte check alone.
+ * Uses the browser's native Web Crypto — no dependency.
+ */
+async function hashMatches(buf, digest) {
+  if (!digest || !digest.startsWith("sha256:")) return true;
+  const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))]
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex === digest.slice(7);
+}
+
 let releases = [];
 
-/** Show the selected release's changelog and manual-download fallback link. */
-function selectRelease(idx) {
+/** URL of a release's mirrored firmware on this site (same-origin, no CORS). */
+function firmwareSrc(r, asset) {
+  return new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
+}
+
+/**
+ * Show the selected release's changelog and manual-download fallback link, and
+ * enable in-browser flashing only once its firmware is actually mirrored on the
+ * site. The release asset can exist on GitHub minutes before the site redeploys
+ * with it, so gate the button on a real same-origin HEAD — otherwise a click
+ * would fetch the 404 page. Re-checks guard against a stale async result if the
+ * selection changed while the HEAD was in flight.
+ */
+async function selectRelease(idx) {
   const r = releases[idx];
   const asset = firmwareAsset(r);
   const fb = $("fallback");
   $("changelog").textContent = r.body || "(no notes)";
   $("changelogBox").hidden = false;
-  $("flash").disabled = !asset;
+  $("flash").disabled = true;
   fb.textContent = "";
   if (!asset) { fb.textContent = t("release.noBin"); return; }
   const link = document.createElement("a");
   link.href = asset.browser_download_url;
   link.textContent = t("release.download", { name: asset.name });
   fb.append(t("release.fallbackPrefix"), link, t("release.fallbackSuffix"));
+  let hosted = false;
+  try { hosted = (await fetch(firmwareSrc(r, asset), { method: "HEAD" })).ok; } catch (e) { /* offline */ }
+  if (releases[Number($("release").value)] !== r) return;
+  $("flash").disabled = !hosted;
+  if (!hosted) fb.prepend(t("release.notHostedYet") + " ");
 }
 
 let flashing = false;
@@ -107,8 +138,10 @@ async function flashSelected() {
   status("flash.connecting");
   let transport, ok = false, usbJtag = false;
   try {
-    const src = new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
-    const buf = new Uint8Array(await (await fetch(src)).arrayBuffer());
+    const resp = await fetch(firmwareSrc(r, asset));
+    if (!resp.ok) throw new Error(t("flash.notHosted"));
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    if (buf[0] !== 0xE9 || !(await hashMatches(buf, asset.digest))) throw new Error(t("flash.badImage"));
     const wipe = $("wipeAll").checked;
     const fileArray = flashRanges(buf.length).map((rg) => ({ data: buf.subarray(rg.from, rg.to), address: rg.offset }));
     const dev = lastPort || (await navigator.serial.getPorts())[0] || await navigator.serial.requestPort();

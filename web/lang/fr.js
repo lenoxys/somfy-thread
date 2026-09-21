@@ -44,6 +44,8 @@ export default {
   "flash.reconnectManual": "Flashé. Cliquez sur « Revérifier la carte » pour reconnecter.",
   "flash.failed": "Échec du flashage : {err}",
   "flash.noFlash": "La puce mémoire de la carte n'a pas répondu — débranchez puis rebranchez la carte, et réessayez.",
+  "flash.notHosted": "Le firmware de cette version n'est pas encore sur le site — la compilation est peut-être en cours. Réessayez dans quelques minutes.",
+  "flash.badImage": "Le firmware téléchargé a échoué à la vérification — flash annulé. La compilation est peut-être en cours ; réessayez dans quelques minutes.",
   "flash.close": "Fermer",
 
   "detect.checking": "Vérification de la carte…",
@@ -57,6 +59,7 @@ export default {
   "release.none": "aucune version publiée pour l'instant",
   "release.prerelease": " (pré-version)",
   "release.noBin": "Cette version ne comporte aucun fichier firmware .bin.",
+  "release.notHostedYet": "Cette version n'est pas encore flashable ici (publication en cours) — utilisez le téléchargement ci-dessous en attendant.",
   "release.download": "Télécharger {name}",
   "release.fallbackPrefix": "Firefox/Safari : ",
   "release.fallbackSuffix": " puis flashez à l'offset 0 avec esptool.",

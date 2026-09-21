@@ -44,6 +44,8 @@ export default {
   "flash.reconnectManual": "Geflasht. Klicken Sie auf „Board erneut prüfen“, um erneut zu verbinden.",
   "flash.failed": "Flashen fehlgeschlagen: {err}",
   "flash.noFlash": "Der Flash-Chip des Boards hat nicht geantwortet – ziehen Sie das Board ab, stecken Sie es wieder an und versuchen Sie es erneut.",
+  "flash.notHosted": "Die Firmware dieser Version ist noch nicht auf der Website – sie wird möglicherweise noch erstellt. Versuchen Sie es in ein paar Minuten erneut.",
+  "flash.badImage": "Die heruntergeladene Firmware hat die Überprüfung nicht bestanden – es wird nicht geflasht. Sie wird möglicherweise noch erstellt; versuchen Sie es in ein paar Minuten erneut.",
   "flash.close": "Schließen",
 
   "detect.checking": "Board wird geprüft…",
@@ -57,6 +59,7 @@ export default {
   "release.none": "noch keine Versionen veröffentlicht",
   "release.prerelease": " (Vorabversion)",
   "release.noBin": "Diese Version enthält kein .bin-Firmware-Asset.",
+  "release.notHostedYet": "Diese Version kann von hier noch nicht geflasht werden (wird noch veröffentlicht) – nutzen Sie inzwischen den Download unten.",
   "release.download": "{name} herunterladen",
   "release.fallbackPrefix": "Firefox/Safari: ",
   "release.fallbackSuffix": " und mit esptool an Offset 0 flashen.",

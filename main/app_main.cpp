@@ -160,6 +160,24 @@ static void wc_set_current(int idx, uint16_t pos)
     WC::Attributes::CurrentPositionLiftPercent100ths::Set(s_wc_ep_ids[idx], p);
 }
 
+#define WC_OP_STOPPED 0
+#define WC_OP_OPENING 1
+#define WC_OP_CLOSING 2
+
+/**
+ * Report a shade's WindowCovering OperationalStatus so a controller shows the
+ * cover as moving (and, for a controller-initiated move, tracks the ramping
+ * position rather than jumping to target only when the move ends). `state` is
+ * the 2-bit operational code (0 stopped, 1 opening, 2 closing) replicated into
+ * the global and lift fields. No-op without a live endpoint.
+ */
+static void wc_set_opstatus(int idx, uint8_t state)
+{
+    if (!s_wc_ep_ids[idx]) return;
+    esp_matter_attr_val_t v = esp_matter_bitmap8(state | (state << 2));
+    attribute::update(s_wc_ep_ids[idx], WC::Id, WC::Attributes::OperationalStatus::Id, &v);
+}
+
 /**
  * Persist a shade's settled position so it survives a reboot. Called only when a
  * move settles (completes, freezes, or snaps), never mid-ramp, keeping NVS writes
@@ -222,6 +240,7 @@ static void motion_tick_work(intptr_t)
             wc_set_current(i, m->target);
             motion_persist(i, m->target);
             m->active = false;
+            wc_set_opstatus(i, WC_OP_STOPPED);
             if (m->send_stop) app_rf_submit(i, SOMFY_MY);
         } else {
             wc_set_current(i, wc_motion_lerp(m->from, m->target, now - m->start_us, m->dur_us, m->lag_us));
@@ -264,6 +283,7 @@ static void motion_go(int idx, uint16_t target, uint16_t travel_ms, uint16_t lag
         s_motion[idx].active = false;
         wc_set_current(idx, target);
         motion_persist(idx, target);
+        wc_set_opstatus(idx, WC_OP_STOPPED);
         return;
     }
     motion_t *m = &s_motion[idx];
@@ -274,6 +294,7 @@ static void motion_go(int idx, uint16_t target, uint16_t travel_ms, uint16_t lag
     m->dur_us    = wc_motion_dur_us(cur, target, travel_ms, lag_ms);
     m->send_stop = send_stop;
     m->active    = true;
+    wc_set_opstatus(idx, target > cur ? WC_OP_CLOSING : WC_OP_OPENING);
     motion_timer_start();
 }
 
@@ -288,6 +309,7 @@ static void motion_stop(int idx)
     m->active = false;
     wc_set_current(idx, pos);
     motion_persist(idx, pos);
+    wc_set_opstatus(idx, WC_OP_STOPPED);
 }
 
 /**

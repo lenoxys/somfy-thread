@@ -43,6 +43,8 @@ export default {
   "flash.reconnectManual": "已烧录。点击「重新检查开发板」以重新连接。",
   "flash.failed": "烧录失败：{err}",
   "flash.noFlash": "开发板的闪存芯片没有响应——请拔下开发板重新插上，然后重试。",
+  "flash.notHosted": "此版本的固件尚未发布到网站——可能仍在构建中。请稍后几分钟再试。",
+  "flash.badImage": "下载的固件未通过校验——已取消刷写。可能仍在构建中；请稍后几分钟再试。",
   "flash.close": "关闭",
 
   "detect.checking": "正在检查开发板…",
@@ -56,6 +58,7 @@ export default {
   "release.none": "暂无已发布的版本",
   "release.prerelease": "（预发布）",
   "release.noBin": "此发行版没有 .bin 固件文件。",
+  "release.notHostedYet": "此版本暂时无法从这里刷写（仍在发布中）——请先使用下方的下载链接。",
   "release.download": "下载 {name}",
   "release.fallbackPrefix": "Firefox/Safari： ",
   "release.fallbackSuffix": " 并用 esptool 在偏移 0 处烧录。",

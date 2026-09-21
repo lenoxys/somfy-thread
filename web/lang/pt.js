@@ -42,6 +42,8 @@ export default {
   "flash.reconnectManual": "Gravado. Clique em «Verificar placa novamente» para voltar a ligar.",
   "flash.failed": "A gravação falhou: {err}",
   "flash.noFlash": "O chip de memória da placa não respondeu — desligue e volte a ligar a placa e tente de novo.",
+  "flash.notHosted": "O firmware desta versão ainda não está no site — pode estar a ser compilado. Tente novamente dentro de alguns minutos.",
+  "flash.badImage": "O firmware transferido falhou na verificação — não será instalado. Pode estar a ser compilado; tente novamente dentro de alguns minutos.",
   "flash.close": "Fechar",
 
   "detect.checking": "A verificar a placa…",
@@ -55,6 +57,7 @@ export default {
   "release.none": "ainda não há versões publicadas",
   "release.prerelease": " (pré-lançamento)",
   "release.noBin": "Esta versão não tem ficheiro de firmware .bin.",
+  "release.notHostedYet": "Esta versão ainda não pode ser instalada a partir daqui (ainda a publicar) — use a transferência abaixo entretanto.",
   "release.download": "Transferir {name}",
   "release.fallbackPrefix": "Firefox/Safari: ",
   "release.fallbackSuffix": " e grave no offset 0 com o esptool.",
