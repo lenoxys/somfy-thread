@@ -180,20 +180,37 @@
     <h2 data-i18n="matter.title"></h2>
     <p class="muted" data-i18n="matter.intro"></p>
     <div class="callout" data-i18n="matter.help"></div>
-    <div id="matterStatus" class="callout" hidden></div>
-    <p id="matterFabrics" class="muted" hidden></p>
-    <img id="qrimg" class="qrimg" alt="" hidden>
-    <ol id="matterProgress" class="progress-steps" hidden>
-      <li data-mstep="scan"><span class="pstep-dot"></span><span data-i18n="matter.stepScan"></span></li>
-      <li data-mstep="matter"><span class="pstep-dot"></span><span data-i18n="matter.stepMatter"></span></li>
-      <li data-mstep="thread" hidden><span class="pstep-dot"></span><span data-i18n="matter.stepThread"></span></li>
-    </ol>
-    <p id="paircode" class="paircode" hidden></p>
     <div class="bar">
-      <button id="pairBtn" class="btn" hidden></button>
-      <button id="matterReset" class="btn danger small" data-i18n="matter.reset"></button>
+      <button id="matterOpen" class="btn primary" data-i18n="matter.open"></button>
     </div>
   </section>
+
+  <!-- Matter pairing + live onboarding modal (opens on the Matter step) -->
+  <div id="matterModal" class="modal-overlay" hidden>
+    <div class="modal-card modal-wide">
+      <h2 data-i18n="matter.modalTitle"></h2>
+      <div id="matterStatus" class="callout" hidden></div>
+      <p id="matterFabrics" class="muted" hidden></p>
+      <div id="matterLabel" class="matter-label" hidden>
+        <div class="matter-brand">
+          <span class="matter-mark" data-icon="matter" aria-hidden="true"></span>
+          <span>matter</span>
+        </div>
+        <img id="qrimg" class="qrimg" alt="">
+        <p id="paircode" class="paircode"></p>
+      </div>
+      <ol id="matterProgress" class="progress-steps" hidden>
+        <li data-mstep="scan"><span class="pstep-dot"></span><span data-i18n="matter.stepScan"></span></li>
+        <li data-mstep="matter"><span class="pstep-dot"></span><span data-i18n="matter.stepMatter"></span></li>
+        <li data-mstep="thread" hidden><span class="pstep-dot"></span><span data-i18n="matter.stepThread"></span></li>
+      </ol>
+      <div class="bar">
+        <button id="pairBtn" class="btn" hidden></button>
+        <button id="matterReset" class="btn danger small" data-i18n="matter.reset"></button>
+        <button id="matterModalClose" class="btn small" data-i18n="matter.close"></button>
+      </div>
+    </div>
+  </div>
 
   <!-- Step 4 — Backup -->
   <section class="card step" data-step="4" hidden>
