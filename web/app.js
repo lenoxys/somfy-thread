@@ -1124,12 +1124,17 @@ async function detect() {
   $("flasher").hidden = true;
   det.hidden = false;
   det.textContent = t("detect.checking");
+  // Retry the version probe: a just-connected (or freshly rebooted after a
+  // flash) board needs a second or two before its console answers, so a single
+  // probe would wrongly report "no firmware" and drop into the flasher.
   let ver = null, proto = 0;
-  try {
-    const line = await request("version", (l) => l.startsWith("somfy-thread "), 2500);
-    const m = line.match(/^somfy-thread (\S+)(?: proto (\d+))?/);
-    if (m) { ver = m[1]; proto = m[2] ? parseInt(m[2], 10) : 0; }
-  } catch (e) { /* not a somfy-thread board (or blank) */ }
+  for (let i = 0; i < 5 && !ver; i++) {
+    try {
+      const line = await request("version", (l) => l.startsWith("somfy-thread "), 1500);
+      const m = line.match(/^somfy-thread (\S+)(?: proto (\d+))?/);
+      if (m) { ver = m[1]; proto = m[2] ? parseInt(m[2], 10) : 0; }
+    } catch (e) { await sleep(400); }
+  }
 
   if (!ver) {
     det.textContent = t("detect.none");
