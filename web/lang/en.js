@@ -39,6 +39,7 @@ export default {
   "flash.reconnecting": "Flashed — waiting for the board to restart…",
   "flash.reconnectManual": "Flashed. Click \"Recheck board\" to reconnect.",
   "flash.failed": "Flashing failed: {err}",
+  "flash.close": "Close",
 
   "detect.checking": "Checking the board…",
   "detect.none": "No somfy-thread firmware detected. Pick a version and flash it.",

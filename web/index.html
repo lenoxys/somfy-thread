@@ -36,6 +36,15 @@
     </div>
   </div>
 
+  <div id="flashModal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <span class="spinner" id="flashSpin" data-icon="spinner"></span>
+      <p class="muted" id="flashStatus"></p>
+      <div class="progress-track"><div id="flashBar" class="progress-bar"></div></div>
+      <button id="flashClose" class="btn" data-i18n="flash.close" hidden></button>
+    </div>
+  </div>
+
   <!-- Step 0 — Board: connect, detect firmware, then update / flash / continue -->
   <section class="card step" data-step="0">
     <h2 data-i18n="board.title"></h2>
@@ -57,10 +66,6 @@
         <label class="wipe"><input type="checkbox" id="wipeAll"><span data-i18n="flasher.wipe"></span></label>
         <p class="muted" data-i18n="flasher.wipeHint"></p>
         <button type="button" id="flash" class="btn primary" data-i18n="flasher.flash" disabled></button>
-      </div>
-      <div id="flashProgress" class="progress" hidden>
-        <div class="progress-track"><div id="flashBar" class="progress-bar"></div></div>
-        <p class="muted" id="flashStatus"></p>
       </div>
       <span class="muted" id="unsupported" data-i18n="flasher.unsupported" hidden></span>
       <p class="muted" id="fallback"></p>

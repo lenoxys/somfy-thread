@@ -40,6 +40,7 @@ export default {
   "flash.reconnecting": "Flashé — attente du redémarrage de la carte…",
   "flash.reconnectManual": "Flashé. Cliquez sur « Revérifier la carte » pour reconnecter.",
   "flash.failed": "Échec du flashage : {err}",
+  "flash.close": "Fermer",
 
   "detect.checking": "Vérification de la carte…",
   "detect.none": "Aucun firmware somfy-thread détecté. Choisissez une version et flashez-la.",

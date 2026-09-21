@@ -77,6 +77,10 @@ let flashing = false;
  * fetching it in the browser is otherwise blocked). The merged image is split
  * around the nvs partition (fwslice) so a normal flash keeps the fleet; the
  * "erase everything" checkbox instead wipes all of flash (fresh/first install).
+ * The post-flash reboot uses the USB-JTAG reset sequence for the ESP32-C6's
+ * native USB Serial/JTAG (PID 0x1001) and the classic RTS-pin reset for a
+ * USB-to-UART bridge; the RTS reset does not reboot the native port, which would
+ * leave the chip in the flasher stub and silent to every serial command.
  */
 async function flashSelected() {
   if (flashing) return;
@@ -86,7 +90,9 @@ async function flashSelected() {
   if (!("serial" in navigator)) { $("unsupported").hidden = false; return; }
   flashing = true;
   $("flash").disabled = true;
-  $("flashProgress").hidden = false;
+  $("flashClose").hidden = true;
+  $("flashSpin").hidden = false;
+  $("flashModal").hidden = false;
   const bar = (pct) => { $("flashBar").style.width = pct + "%"; };
   const status = (key, vars) => { $("flashStatus").textContent = t(key, vars); };
   const term = { clean() {}, writeLine(d) { log(d); }, write(d) { log(String(d).replace(/\r?\n$/, "")); } };
@@ -111,10 +117,6 @@ async function flashSelected() {
       reportProgress: (i, written, total) => bar(Math.round(((i + (total ? written / total : 0)) / fileArray.length) * 100)),
     });
     status("flash.resetting");
-    // The ESP32-C6's native USB Serial/JTAG (PID 0x1001) does not reboot from
-    // the classic RTS-pin reset that after("hard_reset") uses — it would sit in
-    // the flasher stub and stay silent. Use the USB-JTAG reset sequence for it,
-    // the classic reset for a USB-to-UART bridge (CP210x/CH340).
     const pid = transport.getPid && transport.getPid();
     if (pid === 0x1001) { log("reset: USB-JTAG sequence"); await new mod.UsbJtagSerialReset(transport).reset(); }
     else { log("reset: classic hard reset"); await loader.after("hard_reset"); }
@@ -124,6 +126,8 @@ async function flashSelected() {
     const msg = e && e.message ? e.message : String(e);
     log("flash error: " + msg);
     status("flash.failed", { err: msg });
+    $("flashSpin").hidden = true;
+    $("flashClose").hidden = false;
   } finally {
     try { if (transport) await transport.disconnect(); } catch (e2) { /* port re-enumerated on reset */ }
     flashing = false;
@@ -150,6 +154,8 @@ async function waitReconnect(status) {
   }
   log("reconnect: gave up after 15s — use Recheck board");
   status("flash.reconnectManual");
+  $("flashSpin").hidden = true;
+  $("flashClose").hidden = false;
 }
 
 /** Fetch published releases (newest first) into `releases`; empty on failure. */
@@ -1128,20 +1134,21 @@ async function releasePort() {
 }
 
 /**
- * Ask the board for its firmware id/version and branch the wizard: contract
- * (proto) too old for this site → require an update, no Continue; up to date →
- * offer Continue; older release tag → offer Update or Continue; unrecognized/no
- * reply → reveal the flasher. Tag comparison is equality only; the proto number
- * is the real compatibility gate.
+ * Ask the board for its firmware id/version and branch the wizard: no reply →
+ * reveal the flasher (blank board); proto older than this site → require an
+ * update, Next stays disabled; otherwise the board is compatible → show the
+ * installed version and a reflash/update button, Next advances. The version
+ * probe is retried up to five times because a just-connected or freshly
+ * rebooted board takes a second or two before its console answers. The proto
+ * number is the compatibility gate; the version string is the firmware's git
+ * tag, flagged as outdated only when it differs from the latest release tag.
  */
 async function detect() {
   const det = $("detect");
+  $("flashModal").hidden = true;
   $("flasher").hidden = true;
   det.hidden = false;
   det.textContent = t("detect.checking");
-  // Retry the version probe: a just-connected (or freshly rebooted after a
-  // flash) board needs a second or two before its console answers, so a single
-  // probe would wrongly report "no firmware" and drop into the flasher.
   let ver = null, proto = 0;
   for (let i = 0; i < 5 && !ver; i++) {
     det.textContent = t("detect.checking") + ` (${i + 1}/5)`;
@@ -1189,7 +1196,7 @@ async function beginFlash() {
   await releasePort();
   populateReleaseSelect();
   $("flashControls").hidden = false;
-  $("flashProgress").hidden = true;
+  $("flashModal").hidden = true;
   $("flashBar").style.width = "0%";
   $("flasher").hidden = false;
 }
@@ -1356,6 +1363,7 @@ $("refreshReleases").setAttribute("aria-label", t("flasher.refresh"));
 $("refreshReleases").addEventListener("click", () =>
   fetchReleases().then(populateReleaseSelect).catch((e) => log("ERR " + e.message)));
 $("flash").addEventListener("click", () => flashSelected());
+$("flashClose").addEventListener("click", () => { $("flashModal").hidden = true; $("flash").disabled = false; });
 $("next").addEventListener("click", () => setStep(stepIn(1)));
 $("back").addEventListener("click", () => setStep(stepIn(-1)));
 

@@ -266,6 +266,7 @@ select { font: inherit; padding: .45rem .5rem; border: 1px solid var(--line); bo
   white-space: pre-wrap; max-height: 20rem; overflow: auto; font-size: .85rem; }
 .wipe { display: flex; gap: .5rem; align-items: center; margin: .5rem 0; cursor: pointer; }
 .progress { margin: .75rem 0; }
+.modal-card .progress-track { width: 100%; }
 .progress-track { height: 10px; border-radius: 6px; background: var(--disabled-bg); overflow: hidden; }
 .progress-bar { height: 100%; width: 0; background: var(--yellow); transition: width .2s ease; }
 
