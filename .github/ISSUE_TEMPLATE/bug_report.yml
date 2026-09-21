@@ -1,0 +1,47 @@
+name: Bug report
+description: Something isn't working (firmware, setup page, or Matter pairing)
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - Setup page (browser / Web Serial)
+        - Flashing / update
+        - Shade control or PROG pairing
+        - Matter pairing or a controller
+        - Firmware / radio (RF)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Firmware version
+      description: The `version` reply in the setup page's serial log (e.g. somfy-thread v0.0.4 proto 9).
+    validations:
+      required: true
+  - type: input
+    id: controller
+    attributes:
+      label: Matter controller
+      description: Only if it involves Matter — e.g. Home Assistant (Matter Server), Apple Home, Google Home.
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Only for setup-page issues — e.g. Chrome 129, Edge 128.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Serial log
+      description: Attach the setup page's downloaded serial log if you can — it's the fastest way to diagnose.
+      render: text

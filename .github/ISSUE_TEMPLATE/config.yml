@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup page
+    url: https://lenoxys.github.io/somfy-thread/
+    about: Connect the board, add shades, pair Matter, and download the serial log — all in the browser.

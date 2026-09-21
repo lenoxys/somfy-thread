@@ -1,49 +1,38 @@
 # somfy-thread
 
-Control Somfy RTS blinds over **Matter-over-Thread** with a **Waveshare ESP32-C6-Zero** and an **E07-M1101D (CC1101, 433 MHz)** radio. No MQTT, no on-device web server, no cloud — it's a standard Matter device, so it works with any Matter controller and Thread border router, and nothing else.
+Control Somfy RTS blinds over **Matter-over-Thread** — set up entirely from a browser page, no toolchain, no cloud, no app. It's a standard Matter device, so it works with any Matter controller and Thread border router.
 
-Firmware is **generic**: it starts with no shades and you add them on demand (up to a fixed capacity), each exposing its own WindowCovering endpoint with a stable Matter identity. Add a shade by cloning one of your Somfy remotes (the board hears it) or by PROG-pairing a motor that has no remote; a shade can also monitor a linked physical wall remote so pressing it stays in sync. All configuration, PROG pairing, and backup/restore happen from a **static browser page over Web Serial** — there is no code to write and nothing is sent anywhere.
+<!--
+  DEMO — replace the placeholder below with the recorded walkthrough.
+  · GIF:  drop docs/demo.gif in the repo and keep the <img> tag.
+  · MP4:  drag the file into a GitHub issue/PR comment, copy the resulting
+          https://github.com/user-attachments/... URL, and swap the <img> for:
+          <video src="https://github.com/user-attachments/assets/..." controls width="720"></video>
+-->
+<p align="center">
+  <a href="https://lenoxys.github.io/somfy-thread/">
+    <img src="docs/demo.gif" alt="somfy-thread browser setup walkthrough" width="720">
+  </a>
+  <br>
+  <em>▶ Open the setup page — connect, add your shades, pair Matter. All in the browser.</em>
+</p>
+
+## → [Set it up in your browser](https://lenoxys.github.io/somfy-thread/)
+
+Open the page in **Chrome or Edge**, plug the board into USB, and follow the wizard — everything runs locally over Web Serial and nothing is sent anywhere.
+
+- **Board** — connects over Web Serial and reads the firmware version; flashes or updates in-page with [ESP Web Tools](https://esphome.github.io/esp-web-tools/) when needed. *(Firefox/Safari lack Web Serial — download the `.bin` and flash with `esptool`.)*
+- **Shades** — each shade is one motor: name it, run **PROG** (long-press PROG on the motor's existing remote to pair), and test with **Open / Close / My / Stop**. Add a shade by cloning a remote the board hears, or PROG-pair a motor with no remote.
+- **Matter** — get the pairing code and add the device to any Matter controller.
+- **Backup** — **export** a JSON backup and **import** it to restore or migrate.
+
+Each shade exposes its own WindowCovering endpoint with a stable Matter identity; rolling codes are persisted before every transmit, so a reboot never rewinds them.
+
+> **Test certificate — allow it on your controller.** Builds ship an uncertified **test/development attestation certificate**. In **Home Assistant** (Matter Server) enable **"Enable test-net DCL usage."** before pairing. **Apple Home** and **Google Home** offer no such override and will refuse the device until the project ships a certified identity.
 
 ## Hardware
 
-Waveshare ESP32-C6-Zero (native USB-C) wired to an E07-M1101D (CC1101). The E07 runs at **3.3 V — never 5 V**.
-
-The E07 pins are a 2×4 header (odd pins on the bottom row, even on the top):
-
-```
-top row     2 VCC     4 CSN     6 MOSI    8 GDO2
-bottom row  1 GND     3 GDO0    5 SCK     7 MISO/GDO1
-```
-
-| E07 row | E07 pin        | Signal          | ESP32-C6-Zero |
-|---------|----------------|-----------------|---------------|
-| bottom  | 1 · GND        | Ground          | GND           |
-| bottom  | 3 · GDO0       | TX data out     | GP22          |
-| bottom  | 5 · SCK        | SPI clock       | GP19          |
-| bottom  | 7 · MISO/GDO1  | SPI data out    | GP20          |
-| top     | 2 · VCC        | 3.3 V power     | 3V3(OUT)      |
-| top     | 4 · CSN        | SPI chip select | GP21          |
-| top     | 6 · MOSI       | SPI data in     | GP4           |
-| top     | 8 · GDO2       | RX data out     | GP5           |
-
-Both GDO lines are wired: **GDO0 (GP22) transmits** and **GDO2 (GP5) receives** — receive is what lets the board hear your existing remotes for discovery and keep rolling codes in sync. Attach a 433 MHz antenna to the E07. `MOSI (GP4)` and `GDO2 (GP5)` sit on the **left** header, the rest on the top-right — GP4/GP5 are the external-JTAG pins but the console runs over the internal USB-Serial-JTAG, so they're free (and, unlike GP23, actually broken out to a header rather than a back-side pad). The remaining GPIOs are avoided on purpose (GP12/13 native USB, GP8/9/15 strapping/flash, GP14 on-board RF antenna switch).
-
-Default carrier 433.42 MHz; the frequency is a single device-wide radio setting, tunable (a real crystal drifts — sweep 433.36–433.44 if a motor stays silent).
-
-## Set it up (no toolchain)
-
-Open the project page in a Chromium-based browser (Chrome/Edge), plug the board into USB, and follow the wizard — everything runs in the browser and nothing is sent anywhere.
-
-- **Board** — connect over Web Serial; the page reads the firmware version. If it's current you continue straight to config; if a newer release exists you can update; if no somfy-thread firmware is found it flashes one with [ESP Web Tools](https://esphome.github.io/esp-web-tools/). Firefox/Safari don't support Web Serial — download the `.bin` and flash with `esptool` instead.
-
-Each release ships a `somfy-thread-esp32c6-<version>.bin` carrying a build-provenance attestation, so you can confirm it was built by this repo's workflow: `gh attestation verify somfy-thread-esp32c6-<version>.bin --repo lenoxys/somfy-thread`.
-- **Shades** — each shade is one motor: name it, run **PROG** (then long-press PROG on the motor's existing remote to pair), and test with **Open / Close / My / Stop**. Address and rolling code are only needed when restoring a backup.
-- **Matter** — get the pairing code and add the device to any Matter controller.
-
-  > **Test certificate — allow it on your controller.** Builds currently ship an uncertified **test/development attestation certificate**, so any controller with a production trust policy refuses the device until you allow test certificates. In **Home Assistant** (Matter Server) turn on **"Enable test-net DCL usage."** before pairing. Controllers that offer no such override — notably **Apple Home** and **Google Home** — will not add the device at all until the project ships a certified identity.
-- **Backup** — **export** a JSON backup and **import** it back to restore or migrate.
-
-Rolling codes are persisted to flash before every transmit, so a reboot never rewinds them.
+Waveshare ESP32-C6-Zero + E07-M1101D (CC1101, 433 MHz). Full wiring, pin map, and radio notes: **[docs/HARDWARE.md](docs/HARDWARE.md)**.
 
 ## Build from source
 
@@ -61,27 +50,27 @@ The Somfy frame builder has a host self-test with no ESP dependencies:
 cc -Imain test/test_somfy_frame.c main/somfy_frame.c -o /tmp/t && /tmp/t
 ```
 
-## Scope & roadmap
+Each release ships a `somfy-thread-esp32c6-<version>.bin` with a build-provenance attestation: `gh attestation verify somfy-thread-esp32c6-<version>.bin --repo lenoxys/somfy-thread`.
 
-Today this drives **Somfy RTS only** (433 MHz, OOK, rolling code in the clear) — which is why it can be reimplemented at all.
+## Scope
 
-Making **RTS and io-homecontrol coexist** on the same device is a goal, not a promise. io is a different beast: 868/915 MHz (the 433 MHz CC1101 here physically can't reach it, so it needs a second radio), and bidirectional + AES-encrypted with a key-exchange pairing — there is no open io stack to build on, which is the real blocker. If that changes, the natural shape is a per-shade `protocol` tag: the WindowCovering endpoints and the whole config/backup flow stay identical, and only the RF dispatch branches on RTS vs io.
+Drives **Somfy RTS only** (433 MHz, OOK, rolling code in the clear). io-homecontrol is out of reach here — different band (868/915 MHz, needs a second radio) and AES-encrypted with no open stack to build on.
 
 ## Disclaimer
 
-An independent open-source project, **not affiliated with, endorsed by, or
-sponsored by Somfy**. Somfy and RTS are trademarks of their respective owner,
-used here only to describe interoperability.
+An independent open-source project, **not affiliated with, endorsed by, or sponsored by Somfy**. Somfy and RTS are trademarks of their respective owner, used here only to describe interoperability.
 
 ## Credits
 
-This project stands on prior work:
-
-- **[kgun2g/somfy-rts-remote-by-thread](https://github.com/kgun2g/somfy-rts-remote-by-thread)** — the Matter-over-Thread + CC1101 firmware this project's structure and CC1101 register base are informed by.
-- **[Nickduino/Somfy_Remote](https://github.com/Nickduino/Somfy_Remote)** — the canonical Somfy RTS frame/protocol reference.
+- **[kgun2g/somfy-rts-remote-by-thread](https://github.com/kgun2g/somfy-rts-remote-by-thread)** — Matter-over-Thread + CC1101 firmware structure and register base.
+- **[Nickduino/Somfy_Remote](https://github.com/Nickduino/Somfy_Remote)** — canonical Somfy RTS frame/protocol reference.
 - **[ESPSomfy-RTS](https://github.com/rstrouse/ESPSomfy-RTS)** — RTS timing and behaviour reference.
-- **[esp-matter](https://github.com/espressif/esp-matter)** and **[esp-idf](https://github.com/espressif/esp-idf)** — the Matter/Thread stack and SDK.
-- **[ESP Web Tools](https://github.com/esphome/esp-web-tools)** — the in-browser flashing used by the install page.
+- **[esp-matter](https://github.com/espressif/esp-matter)** / **[esp-idf](https://github.com/espressif/esp-idf)** — Matter/Thread stack and SDK.
+- **[ESP Web Tools](https://github.com/esphome/esp-web-tools)** — in-browser flashing.
+
+## Support
+
+Public domain and free — if it saved you a controller, you can [sponsor the project](https://github.com/sponsors/lenoxys). Optional, always appreciated.
 
 ## License
 
