@@ -27,5 +27,5 @@ doc/
 # release firmware mirrored into the site at deploy time (.github/workflows/pages.yml)
 web/fw/
 
-# locally built dev bin (local-build skill artifact, not a release)
-somfy-thread-esp32c6-dev.bin
+# firmware binaries (local-build artifact, release bins live on GitHub Releases)
+*.bin
