@@ -126,6 +126,7 @@ export default {
   "radio.ok": "Radio detected — CC1101 is responding.",
   "radio.absent": "No radio detected. Check the CC1101/E07 wiring and power, then re-check.",
   "radio.scanning": "Scanning {freq} MHz — press and hold a Somfy remote…",
+  "radio.scanCancel": "Cancel",
   "radio.heard": "Heard remote {addr} at {freq} MHz — radio works, frequency locked.",
   "radio.notHeard": "No remote heard on any frequency. Check wiring, or press the remote closer to the board.",
   "motor.prog": "PROG",

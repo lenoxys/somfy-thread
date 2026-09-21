@@ -450,16 +450,20 @@ async function scanAndListen() {
   if (scanning) return;
   scanning = true;
   const heard = $("radioHeard");
-  heard.hidden = false;
+  heard.hidden = true;
   heard.classList.remove("bad");
+  $("scanModal").hidden = false;
   try {
     for (const f of SCAN_FREQS) {
+      if (!scanning) return;
       const fs = f.toFixed(3);
       await send(`freq ${fs}`);
-      heard.textContent = t("radio.scanning", { freq: fs });
+      $("scanMsg").textContent = t("radio.scanning", { freq: fs });
       try {
         const line = await waitFor((l) => l.includes("[RX] addr="), 3000);
+        if (!scanning) return;
         const m = line.match(/addr=0x([0-9A-Fa-f]+)/);
+        heard.hidden = false;
         heard.textContent = t("radio.heard", { addr: m ? m[1] : "?", freq: fs });
         $("radioFreq").value = fs;
         radioReady = true;
@@ -467,11 +471,19 @@ async function scanAndListen() {
         return;
       } catch (e) { /* nothing at this step — try the next */ }
     }
+    heard.hidden = false;
     heard.classList.add("bad");
     heard.textContent = t("radio.notHeard");
   } finally {
     scanning = false;
+    $("scanModal").hidden = true;
   }
+}
+
+/** Cancel an in-flight scanAndListen() sweep and close its modal. */
+function cancelScan() {
+  scanning = false;
+  $("scanModal").hidden = true;
 }
 
 /* ── shade rendering ──────────────────────────────────────────────────── */
@@ -1138,6 +1150,7 @@ function onDisconnect() {
   $("portHint").hidden = false;
   $("discoverPanel").hidden = true;
   $("linkModal").hidden = true;
+  $("scanModal").hidden = true;
   $("flashModal").hidden = true;
   $("disconnModal").hidden = false;
   gateNext();
@@ -1425,6 +1438,7 @@ $("importFile").addEventListener("change", (e) => {
 });
 $("radioFreq").addEventListener("change", (e) => save(`freq ${e.target.value}`));
 $("radioListen").addEventListener("click", () => scanAndListen());
+$("scanCancel").addEventListener("click", () => cancelScan());
 $("radioPower").addEventListener("change", (e) => save(`power ${e.target.value}`));
 $("radioRxbw").addEventListener("change", (e) => save(`rxbw ${e.target.value}`));
 $("radioScan").addEventListener("click", () => scanBand().catch((e) => log("ERR " + e.message)));

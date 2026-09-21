@@ -127,6 +127,7 @@ export default {
   "radio.ok": "Radio détectée — le CC1101 répond.",
   "radio.absent": "Aucune radio détectée. Vérifiez le câblage et l'alimentation du CC1101/E07, puis revérifiez.",
   "radio.scanning": "Balayage à {freq} MHz — maintenez enfoncée une télécommande Somfy…",
+  "radio.scanCancel": "Annuler",
   "radio.heard": "Télécommande {addr} entendue à {freq} MHz — la radio fonctionne, fréquence verrouillée.",
   "radio.notHeard": "Aucune télécommande entendue sur aucune fréquence. Vérifiez le câblage, ou rapprochez la télécommande de la carte.",
   "motor.prog": "PROG",
