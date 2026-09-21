@@ -5,6 +5,7 @@
 // only the firmware .bin is fetched (from GitHub Releases) when flashing.
 
 import { t, applyI18n, languages, getLang, setLang } from "./i18n.js";
+import { flashRanges } from "./fwslice.mjs";
 
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
@@ -56,30 +57,41 @@ function firmwareAsset(release) {
 let releases = [];
 
 /** Apply the selected release to the install button, changelog, and fallback. */
-function selectRelease(idx) {
+async function selectRelease(idx) {
   const r = releases[idx];
   const asset = firmwareAsset(r);
   const installer = $("installer");
   const fb = $("fallback");
-  if (!asset) {
-    installer.removeAttribute("manifest");
-    fb.textContent = t("release.noBin");
-  } else {
-    // Flash from a same-origin copy the Pages deploy mirrors under fw/<tag>/:
-    // ESP Web Tools fetches the .bin cross-origin, and GitHub's release-download
-    // URL 302-redirects to a signed host without CORS headers, so a browser
-    // fetch of it is blocked. The manual-download link below still points at
-    // GitHub (a plain navigation download, no CORS).
-    const src = new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
-    installer.setAttribute("manifest", manifestUrl(src));
-    fb.textContent = "";
-    const link = document.createElement("a");
-    link.href = asset.browser_download_url;
-    link.textContent = t("release.download", { name: asset.name });
-    fb.append(t("release.fallbackPrefix"), link, t("release.fallbackSuffix"));
-  }
   $("changelog").textContent = r.body || "(no notes)";
   $("changelogBox").hidden = false;
+  installer.removeAttribute("manifest");
+  if (!asset) { fb.textContent = t("release.noBin"); return; }
+  fb.textContent = "";
+  const link = document.createElement("a");
+  link.href = asset.browser_download_url;
+  link.textContent = t("release.download", { name: asset.name });
+  fb.append(t("release.fallbackPrefix"), link, t("release.fallbackSuffix"));
+
+  // Flash from a same-origin copy the Pages deploy mirrors under fw/<tag>/ —
+  // ESP Web Tools fetches the .bin cross-origin, and GitHub's release-download
+  // URL redirects to a signed host with no CORS headers, so fetching it in the
+  // browser is blocked. Then split the merged image so the nvs partition (the
+  // fleet config) is left untouched — a whole-image flash pads over nvs and
+  // wipes the shades. On any failure fall back to the whole-image manifest so
+  // flashing still works (at the cost of a wipe).
+  const src = new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
+  try {
+    const buf = new Uint8Array(await (await fetch(src)).arrayBuffer());
+    const parts = flashRanges(buf.length).map((rg) => ({
+      path: URL.createObjectURL(new Blob([buf.subarray(rg.from, rg.to)], { type: "application/octet-stream" })),
+      offset: rg.offset,
+    }));
+    const m = { name: "somfy-thread", builds: [{ chipFamily: "ESP32-C6", parts }] };
+    installer.setAttribute("manifest", URL.createObjectURL(new Blob([JSON.stringify(m)], { type: "application/json" })));
+  } catch (e) {
+    log("manifest split failed, whole-image flash: " + e.message);
+    installer.setAttribute("manifest", manifestUrl(src));
+  }
 }
 
 /** Fetch published releases (newest first) into `releases`; empty on failure. */
