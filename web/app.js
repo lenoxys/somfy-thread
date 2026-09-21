@@ -77,6 +77,10 @@ let flashing = false;
  * fetching it in the browser is otherwise blocked). The merged image is split
  * around the nvs partition (fwslice) so a normal flash keeps the fleet; the
  * "erase everything" checkbox instead wipes all of flash (fresh/first install).
+ * esptool-js never attaches the SPI flash, so on the ESP32-C6's in-package
+ * flash the JEDEC id reads 0 and writes silently go nowhere; flashSpiAttach(0)
+ * after main() (what esptool.py does) makes the flash respond, and the id is
+ * then verified so a non-responding chip aborts instead of faking success.
  * The post-flash reboot uses the USB-JTAG reset sequence for the ESP32-C6's
  * native USB Serial/JTAG (PID 0x1001) and the classic RTS-pin reset for a
  * USB-to-UART bridge; the RTS reset does not reboot the native port, which would
@@ -110,6 +114,10 @@ async function flashSelected() {
     transport = new mod.Transport(dev, false);
     const loader = new mod.ESPLoader({ transport, baudrate: 460800, romBaudrate: 115200, terminal: term });
     await loader.main();
+    await loader.flashSpiAttach(0);
+    const flashId = await loader.readFlashId();
+    log("flash id: 0x" + flashId.toString(16));
+    if (!flashId || flashId === 0xffffff) throw new Error(t("flash.noFlash"));
     status("flash.writing");
     await loader.writeFlash({
       fileArray, flashMode: "keep", flashFreq: "keep", flashSize: "keep",

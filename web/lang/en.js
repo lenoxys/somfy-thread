@@ -39,6 +39,7 @@ export default {
   "flash.reconnecting": "Flashed — waiting for the board to restart…",
   "flash.reconnectManual": "Flashed. Click \"Recheck board\" to reconnect.",
   "flash.failed": "Flashing failed: {err}",
+  "flash.noFlash": "The board's flash chip didn't respond — unplug and replug the board, then try again.",
   "flash.close": "Close",
 
   "detect.checking": "Checking the board…",
