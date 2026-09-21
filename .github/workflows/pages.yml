@@ -12,9 +12,6 @@ on:
     paths:
       - "web/**"
       - ".github/workflows/pages.yml"
-  release:
-    types: [published]
-  workflow_dispatch:
 
 permissions:
   contents: read
