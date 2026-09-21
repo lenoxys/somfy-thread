@@ -152,8 +152,11 @@ export default {
   "matter.paired": "Déjà ajouté à {n} écosystème(s) Matter. Pour l'ajouter à une autre application ou hub, ouvrez une nouvelle fenêtre d'appairage.",
   "matter.addAnother": "Ajouter à un autre écosystème",
   "matter.reset": "Réinitialiser l'appairage",
-  "matter.showQr": "Afficher le code QR",
-  "matter.qr": "Charge utile QR : {qr}",
+  "matter.stepScan": "Scannez le code QR (ou saisissez le code) dans votre application ou box",
+  "matter.stepMatter": "Ajouté à Matter (un fabric / écosystème)",
+  "matter.stepThread": "Rejoint le réseau maillé Thread",
+  "matter.admins": "Enregistré par le(s) ID fabricant : {list}.",
+  "matter.dupWarn": "Deux entrées partagent le même ID fabricant — c'est en général un doublon laissé par un appairage relancé, pas deux écosystèmes distincts. Réinitialisez l'appairage et ajoutez l'appareil une seule fois pour le corriger.",
   "matter.failed": "Échec de l'appairage. L'appareil a rejoint Thread, mais votre hub a interrompu son ajout — le plus souvent parce que le hub rejette le certificat d'attestation de l'appareil, ou parce que la tentative a expiré. Réessayez ; si l'échec persiste, vérifiez que votre hub autorise les appareils Matter non certifiés et consultez ses journaux pour en connaître la raison.",
   "matter.failedToast": "Échec de l'appairage sur le hub",
 

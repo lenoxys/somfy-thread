@@ -36,9 +36,11 @@
 #include <platform/PlatformManager.h>
 #include <lib/support/Span.h>
 #include <system/SystemClock.h>
+#include <esp_openthread.h>
 #include <esp_openthread_types.h>
 #include <esp_openthread_lock.h>
 #include <openthread/logging.h>
+#include <openthread/thread.h>
 #include <platform/ESP32/OpenthreadLauncher.h>
 #include <lib/support/logging/CHIPLogging.h>
 
@@ -651,6 +653,33 @@ extern "C" int app_matter_fabric_count(void)
     return chip::Server::GetInstance().GetFabricTable().FabricCount();
 }
 
+/**
+ * @return true if a commissioning window is open (a hub can pair right now).
+ *         Read directly like app_matter_fabric_count (console thread).
+ */
+extern "C" bool app_matter_window_open(void)
+{
+    return chip::Server::GetInstance().GetCommissioningWindowManager().IsCommissioningWindowOpen();
+}
+
+/**
+ * @return The OpenThread device role as an int (otDeviceRole): 0 disabled,
+ *         1 detached, 2 child, 3 router, 4 leader. >= 2 means attached to the
+ *         mesh. Lets the web show the Thread layer distinctly from Matter
+ *         fabrics — the two are separate (a fabric is a Matter admin; Thread is
+ *         the 802.15.4 network the device joins).
+ */
+extern "C" int app_thread_role(void)
+{
+    int role = 0;
+    if (esp_openthread_lock_acquire(pdMS_TO_TICKS(100))) {
+        otInstance *inst = esp_openthread_get_instance();
+        if (inst) role = (int) otThreadGetDeviceRole(inst);
+        esp_openthread_lock_release();
+    }
+    return role;
+}
+
 static void factory_reset_work(intptr_t full)
 {
     if (full) blind_store_factory_erase();
@@ -1005,13 +1034,34 @@ static int cmd_reg(int argc, char **argv)
  * its input/output changes in a way an older configuration site cannot handle.
  * The site refuses to configure a board whose proto is below the one it targets.
  */
-#define SOMFY_PROTO 8
+#define SOMFY_PROTO 9
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(false); return 0; }
 static int cmd_qr(int, char **)     { printf("%s\n", app_matter_qr()); return 0; }
 static int cmd_pair(int, char **)   { app_matter_open_window(); printf("%s\n", app_matter_manual()); return 0; }
-static int cmd_mstat(int, char **)  { printf("{\"fabrics\":%d}\n", app_matter_fabric_count()); return 0; }
+static int cmd_mstat(int, char **)  { printf("{\"fabrics\":%d,\"thread\":%d,\"win\":%d}\n", app_matter_fabric_count(), app_thread_role(), app_matter_window_open() ? 1 : 0); return 0; }
+
+/**
+ * Print one JSON object per commissioned Matter fabric: table `idx`, the admin's
+ * `vendor` id (who commissioned it), and `fabric` id. Lets the web tell "two
+ * different ecosystems" (distinct vendors) from "the same admin twice" (a
+ * duplicate left by a failed/retried commission) — which the bare `mstat` count
+ * cannot. Vendor id is a number here; the site never brands it.
+ */
+static int cmd_fabrics(int, char **)
+{
+    printf("[");
+    bool first = true;
+    for (const auto &fb : chip::Server::GetInstance().GetFabricTable()) {
+        printf("%s{\"idx\":%u,\"vendor\":%u,\"fabric\":\"%016llX\"}",
+               first ? "" : ",", (unsigned) fb.GetFabricIndex(), (unsigned) fb.GetVendorId(),
+               (unsigned long long) fb.GetFabricId());
+        first = false;
+    }
+    printf("]\n");
+    return 0;
+}
 static int cmd_reset(int, char **)   { printf("OK resetting\n"); app_matter_factory_reset(0); return 0; }
 static int cmd_factory(int, char **) { printf("OK factory\n");   app_matter_factory_reset(1); return 0; }
 static int cmd_reboot(int, char **)  { printf("OK rebooting\n"); esp_restart(); return 0; }
@@ -1077,7 +1127,8 @@ static void register_console(void)
         {"export", "Dump full shade table (backup) as JSON", NULL, &cmd_export, NULL},
         {"qr",     "Print Matter QR payload",                NULL, &cmd_qr,     NULL},
         {"pair",   "Open commissioning window, print code",  NULL, &cmd_pair,   NULL},
-        {"mstat",  "Matter status (commissioned fabric count) as JSON", NULL, &cmd_mstat, NULL},
+        {"mstat",  "Matter status (fabric count, thread role, window) as JSON", NULL, &cmd_mstat, NULL},
+        {"fabrics","List commissioned fabrics (idx, vendor, fabric id) as JSON", NULL, &cmd_fabrics, NULL},
         {"dump",   "Debug: aggregator ep + per-cover NodeLabel", NULL, &cmd_dump, NULL},
         {"reset",  "Reset Matter+Thread (keeps shades) and reboot", NULL, &cmd_reset,  NULL},
         {"factory","Full factory reset: erase shades + Matter+Thread, reboot", NULL, &cmd_factory, NULL},

@@ -129,8 +129,9 @@ export default {
   "matter.paired": "Já adicionado a {n} ecossistema(s) Matter. Para o adicionar a outra aplicação ou hub, abra uma nova janela de emparelhamento.",
   "matter.addAnother": "Adicionar a outro ecossistema",
   "matter.reset": "Repor emparelhamento",
-  "matter.showQr": "Mostrar código QR",
-  "matter.qr": "Payload QR: {qr}",
+  "matter.stepScan": "Leia o código QR (ou introduza o código) na sua aplicação ou hub",
+  "matter.stepMatter": "Adicionado ao Matter (um fabric / ecossistema)",
+  "matter.stepThread": "Ligado à rede em malha Thread",
   "matter.failed": "Emparelhamento falhado. O dispositivo entrou na rede Thread, mas o seu hub cancelou a adição — normalmente o hub rejeita o certificado de atestação do dispositivo, ou a tentativa esgotou o tempo. Tente novamente; se continuar a falhar, verifique se o hub permite dispositivos Matter não certificados e consulte os seus registos para saber o motivo.",
   "matter.failedToast": "Emparelhamento falhado no hub",
 

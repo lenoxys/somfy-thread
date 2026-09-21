@@ -1408,12 +1408,10 @@ async function importBackup(file) {
 
 let pairQr = "";
 
-/** Hide the pairing code, QR image, and payload (paired state, before asked). */
+/** Hide the QR image and manual pairing code (paired state, or before checking). */
 function hidePairing() {
   $("paircode").hidden = true;
   $("qrimg").hidden = true;
-  $("qrpayload").hidden = true;
-  $("qrToggle").hidden = true;
 }
 
 /**
@@ -1431,41 +1429,88 @@ function watchMatter(line) {
   toast(t("matter.failedToast"), false);
 }
 
-let matterFabrics = -1;
+let matterStat = "";
+
+/** Set a progress-tracker row's state ("", "active", or "done"). */
+function setMStep(key, state) {
+  const li = document.querySelector(`#matterProgress [data-mstep="${key}"]`);
+  if (!li) return;
+  li.classList.remove("active", "done");
+  if (state) li.classList.add(state);
+}
 
 /**
- * Reflect the board's commissioning state. Not paired → open a commissioning
- * window and show the code; already paired → report it, hide the code/QR, and
- * offer "add another ecosystem" (multi-admin). Only a change in fabric count
- * acts, so the live poll never re-opens the window or clears the QR toggle mid
- * pairing — it just flips the view the moment the hub finishes (or drops) a
- * commission, without the user leaving the step.
+ * Reflect the board's onboarding state across both layers. `stat` is the parsed
+ * `mstat` object: `fabrics` (Matter admins committed), `thread` (OpenThread role
+ * int, ≥2 = attached), `win` (a commissioning window is open). Not paired → keep
+ * the QR + manual code showing; paired → hide them and offer "add another
+ * ecosystem" (multi-admin). The live 3-row tracker distinguishes the Matter
+ * fabric from the Thread mesh attach, since they are separate steps. Only a
+ * change in the tuple re-renders, so the poll never flickers or re-opens the
+ * window mid-pairing. `thread` is absent on older firmware — that row stays
+ * hidden then.
  */
-function renderMatterState(fabrics) {
-  if (fabrics === matterFabrics) return;
-  matterFabrics = fabrics;
+function renderMatterState(stat) {
+  const key = JSON.stringify(stat);
+  if (key === matterStat) return;
+  matterStat = key;
+  const fabrics = stat.fabrics || 0;
+  const thread = stat.thread;
   const st = $("matterStatus");
   const btn = $("pairBtn");
   st.hidden = false;
   st.classList.remove("bad");
+  $("matterProgress").hidden = false;
+  setMStep("scan", fabrics > 0 ? "done" : stat.win ? "active" : "");
+  setMStep("matter", fabrics > 0 ? "done" : "");
+  const threadRow = document.querySelector('#matterProgress [data-mstep="thread"]');
+  if (thread === undefined) {
+    threadRow.hidden = true;
+  } else {
+    threadRow.hidden = false;
+    setMStep("thread", thread >= 2 ? "done" : fabrics > 0 || thread >= 1 ? "active" : "");
+  }
   if (fabrics > 0) {
     st.textContent = t("matter.paired", { n: fabrics });
     btn.textContent = t("matter.addAnother");
     btn.hidden = false;
     hidePairing();
+    showFabricDetail().catch((e) => log("ERR " + e.message));
   } else {
     st.textContent = t("matter.unpaired");
     btn.hidden = true;
+    $("matterFabrics").hidden = true;
     showPairing().catch((e) => log("ERR " + e.message));
   }
 }
 
-/** Query the board's fabric count once and render it. */
+/**
+ * List the commissioned fabrics' vendor IDs and flag same-vendor duplicates.
+ * Two entries sharing a vendor is almost always a leftover from a retried
+ * pairing, not two distinct ecosystems — so we point at the fix (reset + pair
+ * once). Vendor IDs are shown as raw hex; the site never maps them to brands.
+ * Silent on older firmware without the `fabrics` command.
+ */
+async function showFabricDetail() {
+  const el = $("matterFabrics");
+  el.hidden = true;
+  let list;
+  try { list = JSON.parse(await request("fabrics", (l) => l.startsWith("["))); }
+  catch (e) { return; }
+  if (!Array.isArray(list) || !list.length) return;
+  const vendors = list.map((f) => "0x" + Number(f.vendor).toString(16).toUpperCase().padStart(4, "0"));
+  el.hidden = false;
+  let msg = t("matter.admins", { list: vendors.join(", ") });
+  if (new Set(vendors).size < list.length) msg += " " + t("matter.dupWarn");
+  el.textContent = msg;
+}
+
+/** Query the board's onboarding state once and render it. */
 async function pollMatterOnce() {
-  let fabrics = 0;
-  try { fabrics = JSON.parse(await request("mstat", (l) => l.startsWith("{"))).fabrics; }
+  let stat = { fabrics: 0 };
+  try { stat = JSON.parse(await request("mstat", (l) => l.startsWith("{"))); }
   catch (e) { /* treat an unresponsive board as unpaired */ }
-  renderMatterState(fabrics);
+  renderMatterState(stat);
 }
 
 /**
@@ -1474,7 +1519,7 @@ async function pollMatterOnce() {
  * without a back/next.
  */
 async function loadMatter() {
-  matterFabrics = -1;
+  matterStat = "";
   hidePairing();
   const st = $("matterStatus");
   st.hidden = false;
@@ -1485,22 +1530,15 @@ async function loadMatter() {
 }
 
 /**
- * Open a commissioning window, show the manual code, and arm the "Show QR"
- * toggle. The QR payload is fetched now but only rendered when the user asks.
+ * Open a commissioning window and show the pairing artefacts: the QR code large
+ * on top (the primary path — scan it in the hub app) and the manual code smaller
+ * below as the fallback. The QR is rendered immediately; if its payload or the
+ * qrcode lib is unavailable, only the manual code shows.
  */
 async function showPairing() {
   const manual = await request("pair", (l) => /^\d{11,}$/.test(l.replace(/-/g, "")));
-  const code = $("paircode");
-  code.hidden = false;
-  code.textContent = manual;
   pairQr = "";
   try { pairQr = await request("qr", (l) => l.startsWith("MT:")); } catch (e) { /* payload optional */ }
-  $("qrToggle").hidden = !pairQr;
-}
-
-/** Render the QR image + payload on demand (from the "Show QR" toggle). */
-function renderQr() {
-  $("qrToggle").hidden = true;
   const img = $("qrimg");
   if (pairQr && window.qrcode) {
     const q = window.qrcode(0, "M");
@@ -1508,10 +1546,12 @@ function renderQr() {
     q.make();
     img.src = q.createDataURL(6, 16);
     img.hidden = false;
+  } else {
+    img.hidden = true;
   }
-  const pl = $("qrpayload");
-  pl.hidden = false;
-  pl.textContent = pairQr ? t("matter.qr", { qr: pairQr }) : "";
+  const code = $("paircode");
+  code.hidden = false;
+  code.textContent = manual;
 }
 
 /* ── wiring ───────────────────────────────────────────────────────────── */
@@ -1569,7 +1609,6 @@ $("radioPower").addEventListener("change", (e) => save(`power ${e.target.value}`
 $("radioRxbw").addEventListener("change", (e) => save(`rxbw ${e.target.value}`));
 $("radioScan").addEventListener("click", () => scanBand().catch((e) => log("ERR " + e.message)));
 $("pairBtn").addEventListener("click", () => showPairing().catch((e) => log("ERR " + e.message)));
-$("qrToggle").addEventListener("click", () => renderQr());
 $("matterReset").addEventListener("click", async () => {
   if (await askConfirm(t("confirm.resetMatter"))) send("reset");
 });

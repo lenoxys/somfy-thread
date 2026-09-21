@@ -131,8 +131,9 @@ export default {
   "matter.paired": "Bereits zu {n} Matter-Ökosystem(en) hinzugefügt. Um es einer weiteren App oder einem weiteren Hub hinzuzufügen, öffnen Sie ein neues Kopplungsfenster.",
   "matter.addAnother": "Zu weiterem Ökosystem hinzufügen",
   "matter.reset": "Kopplung zurücksetzen",
-  "matter.showQr": "QR-Code anzeigen",
-  "matter.qr": "QR-Nutzdaten: {qr}",
+  "matter.stepScan": "Scannen Sie den QR-Code (oder geben Sie den Code ein) in Ihrer App oder Ihrem Hub",
+  "matter.stepMatter": "Zu Matter hinzugefügt (ein Fabric / Ökosystem)",
+  "matter.stepThread": "Dem Thread-Mesh-Netzwerk beigetreten",
   "matter.failed": "Kopplung fehlgeschlagen. Das Gerät ist Thread beigetreten, aber Ihr Hub hat das Hinzufügen abgebrochen – meist weil der Hub das Attestierungszertifikat des Geräts ablehnt oder der Versuch abläuft. Versuchen Sie es erneut; wenn es weiterhin fehlschlägt, prüfen Sie, ob Ihr Hub nicht zertifizierte Matter-Geräte zulässt, und sehen Sie in seinen Protokollen nach der Ursache.",
   "matter.failedToast": "Kopplung am Hub fehlgeschlagen",
 

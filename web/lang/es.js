@@ -131,8 +131,9 @@ export default {
   "matter.paired": "Ya añadido a {n} ecosistema(s) Matter. Para añadirlo a otra app o hub, abre una nueva ventana de emparejamiento.",
   "matter.addAnother": "Añadir a otro ecosistema",
   "matter.reset": "Restablecer emparejamiento",
-  "matter.showQr": "Mostrar código QR",
-  "matter.qr": "Datos QR: {qr}",
+  "matter.stepScan": "Escanea el código QR (o introduce el código) en tu app o hub",
+  "matter.stepMatter": "Añadido a Matter (un fabric / ecosistema)",
+  "matter.stepThread": "Unido a la red mallada Thread",
   "matter.failed": "El emparejamiento ha fallado. El dispositivo se unió a Thread, pero tu hub canceló su incorporación: normalmente porque el hub rechaza el certificado de atestación del dispositivo, o porque el intento agota el tiempo de espera. Inténtalo de nuevo; si sigue fallando, comprueba que tu hub permita dispositivos Matter no certificados y revisa sus registros para ver el motivo.",
   "matter.failedToast": "El emparejamiento ha fallado en el hub",
 

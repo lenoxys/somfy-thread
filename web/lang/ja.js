@@ -130,8 +130,9 @@ export default {
   "matter.paired": "すでに {n} 個の Matter エコシステムに追加済みです。別のアプリやハブに追加するには、新しいペアリングウィンドウを開いてください。",
   "matter.addAnother": "別のエコシステムに追加",
   "matter.reset": "ペアリングをリセット",
-  "matter.showQr": "QR コードを表示",
-  "matter.qr": "QR ペイロード: {qr}",
+  "matter.stepScan": "アプリまたはハブで QR コードをスキャン（またはコードを入力）",
+  "matter.stepMatter": "Matter に追加済み（ファブリック／エコシステム）",
+  "matter.stepThread": "Thread メッシュネットワークに参加",
   "matter.failed": "ペアリングに失敗しました。デバイスは Thread に参加しましたが、ハブが追加を中止しました。通常は、ハブがデバイスの認証証明書を拒否したか、処理がタイムアウトしたためです。もう一度お試しください。失敗が続く場合は、ハブが未認証の Matter デバイスを許可しているか確認し、ログで原因を確認してください。",
   "matter.failedToast": "ハブでペアリングに失敗しました",
 

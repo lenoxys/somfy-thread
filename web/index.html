@@ -181,14 +181,18 @@
     <p class="muted" data-i18n="matter.intro"></p>
     <div class="callout" data-i18n="matter.help"></div>
     <div id="matterStatus" class="callout" hidden></div>
+    <p id="matterFabrics" class="muted" hidden></p>
+    <img id="qrimg" class="qrimg" alt="" hidden>
+    <ol id="matterProgress" class="progress-steps" hidden>
+      <li data-mstep="scan"><span class="pstep-dot"></span><span data-i18n="matter.stepScan"></span></li>
+      <li data-mstep="matter"><span class="pstep-dot"></span><span data-i18n="matter.stepMatter"></span></li>
+      <li data-mstep="thread" hidden><span class="pstep-dot"></span><span data-i18n="matter.stepThread"></span></li>
+    </ol>
+    <p id="paircode" class="paircode" hidden></p>
     <div class="bar">
       <button id="pairBtn" class="btn" hidden></button>
-      <button id="qrToggle" class="btn small" hidden data-i18n="matter.showQr"></button>
       <button id="matterReset" class="btn danger small" data-i18n="matter.reset"></button>
     </div>
-    <div id="paircode" class="paircode" hidden></div>
-    <img id="qrimg" class="qrimg" alt="" hidden>
-    <div id="qrpayload" class="qr" hidden></div>
   </section>
 
   <!-- Step 4 — Backup -->

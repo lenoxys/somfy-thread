@@ -151,8 +151,11 @@ export default {
   "matter.paired": "Already added to {n} Matter ecosystem(s). To add it to another app or hub, open a new pairing window.",
   "matter.addAnother": "Add to another ecosystem",
   "matter.reset": "Reset pairing",
-  "matter.showQr": "Show QR code",
-  "matter.qr": "QR payload: {qr}",
+  "matter.stepScan": "Scan the QR code (or enter the code) in your app or hub",
+  "matter.stepMatter": "Added to Matter (a fabric / ecosystem)",
+  "matter.stepThread": "Joined the Thread mesh network",
+  "matter.admins": "Commissioned by vendor ID(s): {list}.",
+  "matter.dupWarn": "Two entries share a vendor ID — that's usually a duplicate left by a retried pairing, not two separate ecosystems. Reset pairing and add the device once to clear it.",
   "matter.failed": "Pairing failed. The device joined Thread, but your hub aborted adding it — usually the hub rejecting the device's attestation certificate, or the attempt timing out. Try again; if it keeps failing, check your hub allows uncertified Matter devices and look at its logs for the reason.",
   "matter.failedToast": "Pairing failed on the hub",
 

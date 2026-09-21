@@ -251,16 +251,27 @@ tr.disabled .ctrls, tr.disabled input.name { opacity: .5; }
   background: var(--surface-alt); }
 .dcard-addr { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; margin-bottom: .4rem; }
 
-/* pairing code */
-.paircode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.6rem; font-weight: 700;
-  letter-spacing: .08em; background: var(--navy); color: #fff; padding: .6rem .9rem; border-radius: 8px;
+/* pairing code — the smaller fallback under the QR */
+.paircode { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.05rem; font-weight: 700;
+  letter-spacing: .06em; background: var(--navy); color: #fff; padding: .4rem .7rem; border-radius: 8px;
   display: inline-block; margin: .5rem 0; }
 .paircode[hidden], .qrimg[hidden] { display: none; }
+
+/* onboarding progress tracker (Thread + Matter layers) */
+.progress-steps { list-style: none; padding: 0; margin: 1rem 0; display: flex; flex-direction: column; gap: .55rem; }
+.progress-steps[hidden] { display: none; }
+.progress-steps li { display: flex; align-items: center; gap: .6rem; color: var(--muted); font-size: .92rem; }
+.progress-steps li[hidden] { display: none; }
+.progress-steps li.active { color: var(--fg); font-weight: 600; }
+.progress-steps li.done { color: var(--fg); }
+.pstep-dot { flex: none; width: .8rem; height: .8rem; border-radius: 999px; background: var(--line); }
+.progress-steps li.active .pstep-dot { background: var(--yellow); }
+.progress-steps li.done .pstep-dot { background: var(--ok); }
 .adv { margin-top: 1rem; }
 .adv summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
 .advrow { display: flex; align-items: center; gap: .6rem; margin: .7rem 0 .3rem; }
 .advrow input { width: 8rem; }
-.qrimg { display: block; width: 220px; height: auto; margin: .5rem 0; border-radius: 8px;
+.qrimg { display: block; width: 260px; height: auto; margin: .75rem auto; border-radius: 8px;
   background: #fff; padding: .5rem; image-rendering: pixelated; }
 .qr { word-break: break-all; font-family: ui-monospace, monospace; font-size: .8rem; color: var(--muted); }
 
