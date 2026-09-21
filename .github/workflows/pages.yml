@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Unlicense
 # Deploy the static install/config site to GitHub Pages. The deploy vendors the
-# ESP Web Tools bundle and mirrors each release's firmware .bin under fw/<tag>/
+# esptool-js bundle and mirrors each release's firmware .bin under fw/<tag>/
 # so the flasher fetches it same-origin (GitHub's release-download URL redirects
 # to a signed host with no CORS headers, so a browser fetch of it is blocked).
 # Re-runs on release publish so new firmware lands on the site.
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Vendor ESP Web Tools
+      - name: Vendor JS deps
         run: sh web/vendor/fetch.sh
       - name: Mirror release firmware
         env:

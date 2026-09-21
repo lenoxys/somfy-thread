@@ -30,6 +30,13 @@ export default {
   "flasher.notAllowed": "Flashing needs a secure (https) page.",
   "flasher.releaseNotes": "Release notes",
   "flasher.refresh": "Refresh releases",
+  "flasher.wipe": "Erase everything first",
+  "flasher.wipeHint": "Leave off to keep your shades when updating. Turn on for a first install or to start fresh — it wipes all saved config.",
+  "flash.connecting": "Connecting to the board…",
+  "flash.writing": "Writing firmware…",
+  "flash.resetting": "Restarting the board…",
+  "flash.done": "Done — firmware flashed.",
+  "flash.failed": "Flashing failed: {err}",
 
   "detect.checking": "Checking the board…",
   "detect.none": "No somfy-thread firmware detected. Pick a version and flash it.",

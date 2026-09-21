@@ -52,11 +52,14 @@
         <select id="release"><option data-i18n="flasher.loading"></option></select>
         <button type="button" id="refreshReleases" class="iconbtn" data-icon="refresh"></button>
       </div>
-      <esp-web-install-button id="installer">
-        <button slot="activate" class="btn primary" data-i18n="flasher.flash"></button>
-        <span slot="unsupported" class="muted" data-i18n="flasher.unsupported"></span>
-        <span slot="not-allowed" class="muted" data-i18n="flasher.notAllowed"></span>
-      </esp-web-install-button>
+      <label class="wipe"><input type="checkbox" id="wipeAll"><span data-i18n="flasher.wipe"></span></label>
+      <p class="muted" data-i18n="flasher.wipeHint"></p>
+      <button type="button" id="flash" class="btn primary" data-i18n="flasher.flash" disabled></button>
+      <div id="flashProgress" class="progress" hidden>
+        <div class="progress-track"><div id="flashBar" class="progress-bar"></div></div>
+        <p class="muted" id="flashStatus"></p>
+      </div>
+      <span class="muted" id="unsupported" data-i18n="flasher.unsupported" hidden></span>
       <p class="muted" id="fallback"></p>
       <details id="changelogBox" hidden>
         <summary data-i18n="flasher.releaseNotes"></summary>
@@ -191,7 +194,6 @@
 </footer>
 
 <script src="./vendor/qrcode.js"></script>
-<script type="module" src="./vendor/esp-web-tools.js"></script>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

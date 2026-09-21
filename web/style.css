@@ -264,7 +264,10 @@ tr.disabled .ctrls, tr.disabled input.name { opacity: .5; }
 select { font: inherit; padding: .45rem .5rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-alt); color: var(--fg); }
 #changelog { background: var(--changelog-bg); border: 1px solid var(--line); border-radius: 8px; padding: .6rem;
   white-space: pre-wrap; max-height: 20rem; overflow: auto; font-size: .85rem; }
-esp-web-install-button { display: inline-block; margin: .5rem 0; }
+.wipe { display: flex; gap: .5rem; align-items: center; margin: .5rem 0; cursor: pointer; }
+.progress { margin: .75rem 0; }
+.progress-track { height: 10px; border-radius: 6px; background: var(--disabled-bg); overflow: hidden; }
+.progress-bar { height: 100%; width: 0; background: var(--yellow); transition: width .2s ease; }
 
 /* serial log */
 .log-wrap { margin-top: 1.5rem; }

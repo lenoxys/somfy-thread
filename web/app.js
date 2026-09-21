@@ -10,6 +10,14 @@ import { flashRanges } from "./fwslice.mjs";
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
 
+let esptoolMod = null;
+/** Lazily import the vendored esptool-js bundle (218 KB) only when flashing. */
+function esptool() {
+  return esptoolMod || (esptoolMod = import("./vendor/esptool.js"));
+}
+
+let lastPort = null;
+
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
@@ -36,19 +44,6 @@ function repoSlug() {
   return "OWNER/somfy-thread";
 }
 
-/**
- * Build a one-part ESP Web Tools manifest pointing at an absolute .bin URL and
- * return a blob: URL for it. The absolute part path lets the manifest live at a
- * blob: URL while the binary is fetched from GitHub.
- */
-function manifestUrl(binUrl) {
-  const manifest = {
-    name: "somfy-thread",
-    builds: [{ chipFamily: "ESP32-C6", parts: [{ path: binUrl, offset: 0 }] }],
-  };
-  return URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/json" }));
-}
-
 /** Find the flashable firmware asset (a merged *.bin) in a release. */
 function firmwareAsset(release) {
   return (release.assets || []).find((x) => x.name.endsWith(".bin")) || null;
@@ -56,41 +51,76 @@ function firmwareAsset(release) {
 
 let releases = [];
 
-/** Apply the selected release to the install button, changelog, and fallback. */
-async function selectRelease(idx) {
+/** Show the selected release's changelog and manual-download fallback link. */
+function selectRelease(idx) {
   const r = releases[idx];
   const asset = firmwareAsset(r);
-  const installer = $("installer");
   const fb = $("fallback");
   $("changelog").textContent = r.body || "(no notes)";
   $("changelogBox").hidden = false;
-  installer.removeAttribute("manifest");
-  if (!asset) { fb.textContent = t("release.noBin"); return; }
+  $("flash").disabled = !asset;
   fb.textContent = "";
+  if (!asset) { fb.textContent = t("release.noBin"); return; }
   const link = document.createElement("a");
   link.href = asset.browser_download_url;
   link.textContent = t("release.download", { name: asset.name });
   fb.append(t("release.fallbackPrefix"), link, t("release.fallbackSuffix"));
+}
 
-  // Flash from a same-origin copy the Pages deploy mirrors under fw/<tag>/ —
-  // ESP Web Tools fetches the .bin cross-origin, and GitHub's release-download
-  // URL redirects to a signed host with no CORS headers, so fetching it in the
-  // browser is blocked. Then split the merged image so the nvs partition (the
-  // fleet config) is left untouched — a whole-image flash pads over nvs and
-  // wipes the shades. On any failure fall back to the whole-image manifest so
-  // flashing still works (at the cost of a wipe).
-  const src = new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
+let flashing = false;
+
+/**
+ * Flash the selected release in-page with esptool-js, reusing the serial port
+ * the user already granted (no second port picker, no external flasher dialog).
+ * The firmware is a same-origin copy the Pages deploy mirrors under fw/<tag>/
+ * (GitHub's release-download URL redirects to a host with no CORS headers, so
+ * fetching it in the browser is otherwise blocked). The merged image is split
+ * around the nvs partition (fwslice) so a normal flash keeps the fleet; the
+ * "erase everything" checkbox instead wipes all of flash (fresh/first install).
+ */
+async function flashSelected() {
+  if (flashing) return;
+  const r = releases[Number($("release").value) || 0];
+  const asset = r && firmwareAsset(r);
+  if (!asset) return;
+  if (!("serial" in navigator)) { $("unsupported").hidden = false; return; }
+  flashing = true;
+  $("flash").disabled = true;
+  $("flashProgress").hidden = false;
+  const bar = (pct) => { $("flashBar").style.width = pct + "%"; };
+  const status = (key, vars) => { $("flashStatus").textContent = t(key, vars); };
+  const term = { clean() {}, writeLine(d) { log(d); }, write(d) { log(String(d).replace(/\r?\n$/, "")); } };
+  bar(0);
+  status("flash.connecting");
+  let transport;
   try {
+    const src = new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
     const buf = new Uint8Array(await (await fetch(src)).arrayBuffer());
-    const parts = flashRanges(buf.length).map((rg) => ({
-      path: URL.createObjectURL(new Blob([buf.subarray(rg.from, rg.to)], { type: "application/octet-stream" })),
-      offset: rg.offset,
-    }));
-    const m = { name: "somfy-thread", builds: [{ chipFamily: "ESP32-C6", parts }] };
-    installer.setAttribute("manifest", URL.createObjectURL(new Blob([JSON.stringify(m)], { type: "application/json" })));
+    const wipe = $("wipeAll").checked;
+    const fileArray = flashRanges(buf.length).map((rg) => ({ data: buf.subarray(rg.from, rg.to), address: rg.offset }));
+    const dev = lastPort || (await navigator.serial.getPorts())[0] || await navigator.serial.requestPort();
+    await releasePort();
+    transport = new (await esptool()).Transport(dev, false);
+    const loader = new (await esptool()).ESPLoader({ transport, baudrate: 460800, romBaudrate: 115200, terminal: term });
+    await loader.main();
+    status("flash.writing");
+    await loader.writeFlash({
+      fileArray, flashMode: "keep", flashFreq: "keep", flashSize: "keep",
+      eraseAll: wipe, compress: true,
+      reportProgress: (i, written, total) => bar(Math.round(((i + (total ? written / total : 0)) / fileArray.length) * 100)),
+    });
+    status("flash.resetting");
+    await loader.after("hard_reset");
+    bar(100);
+    status("flash.done");
   } catch (e) {
-    log("manifest split failed, whole-image flash: " + e.message);
-    installer.setAttribute("manifest", manifestUrl(src));
+    const msg = e && e.message ? e.message : String(e);
+    log("flash error: " + msg);
+    status("flash.failed", { err: msg });
+  } finally {
+    try { if (transport) await transport.disconnect(); } catch (e2) { /* port re-enumerated on reset */ }
+    flashing = false;
+    $("flash").disabled = false;
   }
 }
 
@@ -994,6 +1024,7 @@ function addMotor() {
 async function connect() {
   if (!("serial" in navigator)) { alert(t("alert.webserial")); return; }
   port = await navigator.serial.requestPort();
+  lastPort = port;
   await port.open({ baudRate: 115200 });
   writer = port.writable.getWriter();
   readLoop();
@@ -1033,12 +1064,12 @@ function onDisconnect() {
 }
 
 /**
- * Release the serial port so ESP Web Tools can claim it for flashing, and reset
- * the connection UI. The read loop pipes port.readable into a decoder, which
- * *locks* port.readable — so port.close() would reject while that pipe is live.
- * Cancel the reader and abort the pipe first (unlocking port.readable), then
- * close; otherwise the port stays open and ESP Web Tools hits "Port is already
- * open" when it reopens the same device.
+ * Release the serial port so esptool-js can reopen the same device for flashing,
+ * and reset the connection UI. The read loop pipes port.readable into a decoder,
+ * which *locks* port.readable — so port.close() would reject while that pipe is
+ * live. Cancel the reader and abort the pipe first (unlocking port.readable),
+ * then close; otherwise the port stays open and esptool's Transport hits "Port
+ * is already open" when it reopens the same device.
  */
 async function releasePort() {
   connected = false;
@@ -1104,7 +1135,7 @@ async function detect() {
   $("next").disabled = false;
 }
 
-/** Close the serial port and reveal the release picker + install button. */
+/** Close the serial port and reveal the release picker + flash controls. */
 async function beginFlash() {
   await releasePort();
   populateReleaseSelect();
@@ -1272,6 +1303,7 @@ $("refreshReleases").title = t("flasher.refresh");
 $("refreshReleases").setAttribute("aria-label", t("flasher.refresh"));
 $("refreshReleases").addEventListener("click", () =>
   fetchReleases().then(populateReleaseSelect).catch((e) => log("ERR " + e.message)));
+$("flash").addEventListener("click", () => flashSelected());
 $("next").addEventListener("click", () => setStep(stepIn(1)));
 $("back").addEventListener("click", () => setStep(stepIn(-1)));
 

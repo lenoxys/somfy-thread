@@ -31,6 +31,13 @@ export default {
   "flasher.notAllowed": "Le flashage nécessite une page sécurisée (https).",
   "flasher.releaseNotes": "Notes de version",
   "flasher.refresh": "Actualiser les versions",
+  "flasher.wipe": "Tout effacer d'abord",
+  "flasher.wipeHint": "Laissez décoché pour conserver vos volets lors d'une mise à jour. Cochez pour une première installation ou pour repartir de zéro — cela efface toute la configuration.",
+  "flash.connecting": "Connexion à la carte…",
+  "flash.writing": "Écriture du firmware…",
+  "flash.resetting": "Redémarrage de la carte…",
+  "flash.done": "Terminé — firmware flashé.",
+  "flash.failed": "Échec du flashage : {err}",
 
   "detect.checking": "Vérification de la carte…",
   "detect.none": "Aucun firmware somfy-thread détecté. Choisissez une version et flashez-la.",
