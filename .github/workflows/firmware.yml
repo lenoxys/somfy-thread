@@ -1,15 +1,8 @@
 # SPDX-License-Identifier: Unlicense
-# Build the ESP32-C6 firmware, attest its provenance (SLSA/Sigstore), and publish
-# a GitHub Release with the merged firmware.bin (flashable at offset 0) attached.
-#
-# Triggered by pushing an annotated tag (git tag -a vX.Y.Z -F notes; git push --tags):
-# the tag name becomes the firmware version (via version.txt) and the tag message
-# becomes the release notes. The bin is attached while the release is still a DRAFT,
-# then the release is published last — release immutability freezes a published
-# release's assets, so the asset must be in place before publish. Publishing emits
-# the release:published event that triggers pages.yml to mirror the new bin, by
-# which point the asset already exists. workflow_dispatch runs a test build only
-# (builds + attests, publishes nothing).
+# Build the ESP32-C6 firmware, attest its provenance (SLSA/Sigstore), and attach
+# the merged firmware.bin (flashable at offset 0 by ESP Web Tools) to the GitHub
+# Release when it is published. workflow_dispatch runs a manual test build (it
+# builds and attests but attaches nothing, since there's no release to attach to).
 #
 # Uses Espressif's prebuilt esp-matter image (esp-idf + esp-matter already
 # installed) so there's no clone/bootstrap. Bump the image tag when upgrading;
@@ -17,9 +10,8 @@
 name: firmware
 
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -43,11 +35,8 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           . "$IDF_PATH/export.sh"
           . "$ESP_MATTER_PATH/export.sh"
-          case "$GITHUB_REF" in
-            refs/tags/*) VER="$GITHUB_REF_NAME" ;;
-            *) VER=dev ;;
-          esac
-          echo "$VER" > version.txt
+          VER="${{ github.event.release.tag_name }}"
+          [ -n "$VER" ] && echo "$VER" > version.txt || VER=dev
           BIN="somfy-thread-esp32c6-$VER.bin"
           echo "BIN=$BIN" >> "$GITHUB_ENV"
           idf.py set-target esp32c6
@@ -60,13 +49,15 @@ jobs:
         with:
           subject-path: ${{ github.workspace }}/${{ env.BIN }}
 
-      - name: Publish release with firmware
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Attach firmware to release
+        if: github.event_name == 'release'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          UPLOAD_URL: ${{ github.event.release.upload_url }}
         run: |
-          TAG="$GITHUB_REF_NAME"
-          gh release create "$TAG" --draft --title "$TAG" --notes-from-tag \
-            --repo "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE/$BIN"
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          url="${UPLOAD_URL%%\{*}?name=$BIN"
+          curl -fsSL -X POST "$url" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$GITHUB_WORKSPACE/$BIN"
