@@ -2,16 +2,9 @@
 
 Control Somfy RTS blinds over **Matter-over-Thread** — set up entirely from a browser page, no toolchain, no cloud, no app. It's a standard Matter device, so it works with any Matter controller and Thread border router.
 
-<!--
-  DEMO — replace the placeholder below with the recorded walkthrough.
-  · GIF:  drop docs/demo.gif in the repo and keep the <img> tag.
-  · MP4:  drag the file into a GitHub issue/PR comment, copy the resulting
-          https://github.com/user-attachments/... URL, and swap the <img> for:
-          <video src="https://github.com/user-attachments/assets/..." controls width="720"></video>
--->
 <p align="center">
   <a href="https://lenoxys.github.io/somfy-thread/">
-    <img src="docs/demo.gif" alt="somfy-thread browser setup walkthrough" width="720">
+    <img src="https://github.com/user-attachments/assets/ef21403b-1f5d-4ee3-b7f2-9aec633def5c" alt="somfy-thread browser setup walkthrough" width="720">
   </a>
   <br>
   <em>▶ Open the setup page — connect, add your shades, pair Matter. All in the browser.</em>
