@@ -104,7 +104,7 @@ async function flashSelected() {
   const term = { clean() {}, writeLine(d) { log(d); }, write(d) { log(String(d).replace(/\r?\n$/, "")); } };
   bar(0);
   status("flash.connecting");
-  let transport, ok = false;
+  let transport, ok = false, usbJtag = false;
   try {
     const src = new URL(`fw/${encodeURIComponent(r.tag_name)}/${asset.name}`, location.href).href;
     const buf = new Uint8Array(await (await fetch(src)).arrayBuffer());
@@ -114,7 +114,7 @@ async function flashSelected() {
     await releasePort();
     const mod = await esptool();
     transport = new mod.Transport(dev, false);
-    const usbJtag = (transport.getPid && transport.getPid()) === 0x1001;
+    usbJtag = (transport.getPid && transport.getPid()) === 0x1001;
     const loader = new mod.ESPLoader({ transport, baudrate: usbJtag ? 115200 : 460800, romBaudrate: 115200, terminal: term });
     await loader.main();
     await loader.flashSpiAttach(0);
@@ -142,8 +142,30 @@ async function flashSelected() {
     try { if (transport) await transport.disconnect(); } catch (e2) { /* port re-enumerated on reset */ }
     flashing = false;
   }
-  if (ok) await waitReconnect(status);
+  if (ok) { if (usbJtag) waitReplug(status); else await waitReconnect(status); }
   else $("flash").disabled = false;
+}
+
+/**
+ * On the ESP32-C6's native USB Serial/JTAG neither the USB-JTAG reset sequence
+ * nor the RTS pin reliably reboots the chip out of the flasher stub over Web
+ * Serial — a browser limitation, not a bad flash — so the just-written board
+ * would otherwise be reopened still in the stub and misread as blank. A physical
+ * power cycle does boot it, and re-enumerates the device: ask for the unplug/
+ * replug and reconnect on the browser's `connect` event (fired when the board
+ * reappears) with no port picker; connect() then re-fingerprints the firmware.
+ */
+function waitReplug(status) {
+  $("flashControls").hidden = true;
+  $("flashSpin").hidden = true;
+  $("flashClose").hidden = false;
+  status("flash.replug");
+  lastPort = null;
+  const onReappear = (e) => {
+    navigator.serial.removeEventListener("connect", onReappear);
+    connect(e.target).catch((err) => log("replug reconnect: " + err.message));
+  };
+  navigator.serial.addEventListener("connect", onReappear);
 }
 
 /**

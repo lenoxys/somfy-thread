@@ -38,6 +38,7 @@ export default {
   "flash.resetting": "Redémarrage de la carte…",
   "flash.done": "Terminé — firmware flashé.",
   "flash.reconnecting": "Flashé — attente du redémarrage de la carte…",
+  "flash.replug": "Firmware flashé. Débranchez la carte puis rebranchez-la pour la démarrer — la reconnexion est automatique.",
   "flash.reconnectManual": "Flashé. Cliquez sur « Revérifier la carte » pour reconnecter.",
   "flash.failed": "Échec du flashage : {err}",
   "flash.noFlash": "La puce mémoire de la carte n'a pas répondu — débranchez puis rebranchez la carte, et réessayez.",

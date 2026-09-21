@@ -37,6 +37,7 @@ export default {
   "flash.resetting": "Restarting the board…",
   "flash.done": "Done — firmware flashed.",
   "flash.reconnecting": "Flashed — waiting for the board to restart…",
+  "flash.replug": "Firmware flashed. Unplug the board and plug it back in to start it — it'll reconnect automatically.",
   "flash.reconnectManual": "Flashed. Click \"Recheck board\" to reconnect.",
   "flash.failed": "Flashing failed: {err}",
   "flash.noFlash": "The board's flash chip didn't respond — unplug and replug the board, then try again.",
