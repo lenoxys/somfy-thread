@@ -138,9 +138,10 @@ async function waitReconnect(status) {
   for (let i = 0; i < 15; i++) {
     await sleep(1000);
     const dev = lastPort || (await navigator.serial.getPorts())[0];
-    if (!dev) continue;
-    try { await connect(dev); return; } catch (e) { /* not back yet, retry */ }
+    if (!dev) { log(`reconnect: no granted port yet (${i + 1}/15)`); continue; }
+    try { await connect(dev); return; } catch (e) { log(`reconnect: port not back (${i + 1}/15) — ${e.message}`); }
   }
+  log("reconnect: gave up after 15s — use Recheck board");
   status("flash.reconnectManual");
 }
 
@@ -226,7 +227,13 @@ async function readLoop() {
 /** Send a command line to the device. */
 async function send(cmd) {
   log("> " + cmd);
-  await writer.write(new TextEncoder().encode(cmd + "\n"));
+  if (!writer) { log("send: no writer (port not open)"); throw new Error("no writer"); }
+  try {
+    await writer.write(new TextEncoder().encode(cmd + "\n"));
+  } catch (e) {
+    log("send: write failed — " + e.message);
+    throw e;
+  }
 }
 
 /**
@@ -1133,8 +1140,10 @@ async function detect() {
       const line = await request("version", (l) => l.startsWith("somfy-thread "), 1500);
       const m = line.match(/^somfy-thread (\S+)(?: proto (\d+))?/);
       if (m) { ver = m[1]; proto = m[2] ? parseInt(m[2], 10) : 0; }
-    } catch (e) { await sleep(400); }
+    } catch (e) { log(`detect: no version reply (${i + 1}/5) — ${e.message}`); await sleep(400); }
   }
+  if (!ver) log("detect: board did not identify as somfy-thread — treating as blank");
+  else log(`detect: somfy-thread ${ver} proto ${proto}`);
 
   if (!ver) {
     det.textContent = t("detect.none");
