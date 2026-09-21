@@ -145,8 +145,8 @@ code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font
 .wiznav { display: flex; justify-content: space-between; gap: .5rem; margin: 1rem 0; }
 .wiznav #next { margin-left: auto; }
 /* draw the eye to Next once a step's action unlocks it */
-.btn.bounce { animation: bounce .6s ease 2; }
-@keyframes bounce { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } 60% { transform: translateY(0); } 80% { transform: translateY(-3px); } }
+.btn.bounce { animation: bounce .5s ease 3; }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(-11px); } 55% { transform: translateY(0); } 78% { transform: translateY(-5px); } }
 @media (prefers-reduced-motion: reduce) { .btn.bounce { animation: none; } }
 
 /* connection status */

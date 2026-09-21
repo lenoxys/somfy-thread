@@ -382,7 +382,26 @@ function updatePrimary() {
   if (step === CONNECT_STEP) nextGold = boardDetected && !boardOutdated;
   else if (step === RADIO_STEP) nextGold = radioReady;
   else if (step === SHADES_STEP) nextGold = shades.length > 0;
+  const nextEl = $("next");
   gold("next", nextGold);
+  const armed = nextGold && !nextEl.disabled && !nextEl.hidden;
+  if (armed && !nextArmed) bounceNext();
+  nextArmed = armed;
+}
+
+let nextArmed = false;
+
+/**
+ * Draw the eye to Next by replaying its bounce. Removing the class, forcing a
+ * reflow, then re-adding restarts the CSS animation even if it just played — so
+ * every time a step unlocks Next (board detected, radio heard, first shade
+ * added) the button pulses again, not only on the very first unlock.
+ */
+function bounceNext() {
+  const el = $("next");
+  el.classList.remove("bounce");
+  void el.offsetWidth;
+  el.classList.add("bounce");
 }
 
 /* ── radio step ───────────────────────────────────────────────────────── */
@@ -393,7 +412,6 @@ function updatePrimary() {
  */
 async function loadRadio() {
   $("radioListen").disabled = false;
-  $("next").classList.remove("bounce");
   const line = await request("radio", (l) => l.startsWith("{"));
   const st = JSON.parse(line);
   radioReady = !!st.rf;
@@ -492,9 +510,8 @@ async function scanAndListen() {
         heard.textContent = t("radio.heard", { addr: m ? m[1] : "?", freq: fs });
         $("radioFreq").value = fs;
         radioReady = true;
-        gateNext();
         $("radioListen").disabled = true;
-        $("next").classList.add("bounce");
+        gateNext();
         return;
       } catch (e) { /* nothing at this step — try the next */ }
     }
@@ -1284,6 +1301,7 @@ async function detect() {
   const det = $("detect");
   boardDetected = false;
   boardOutdated = false;
+  nextArmed = false;
   $("flashModal").hidden = true;
   $("flashConfirmModal").hidden = true;
   det.hidden = false;
