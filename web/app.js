@@ -521,6 +521,13 @@ async function scanBand() {
 const SCAN_FREQS = [433.42, 433.40, 433.44, 433.38, 433.46, 433.36];
 let scanning = false;
 
+/** Parse one unsolicited Somfy receive line. */
+function parseRx(line) {
+  const addr = line.match(/addr=0x([0-9A-Fa-f]+)/);
+  const code = line.match(/code=(\d+)/);
+  return addr ? { addr: addr[1].toUpperCase().padStart(6, "0"), code: code ? Number(code[1]) : 0 } : null;
+}
+
 /**
  * Scan the band while listening: retune the radio to each candidate frequency
  * and wait for the board to decode a frame ([RX] log line). The first frequency
@@ -543,9 +550,9 @@ async function scanAndListen() {
       try {
         const line = await waitFor((l) => l.includes("[RX] addr="), 3000);
         if (!scanning) return;
-        const m = line.match(/addr=0x([0-9A-Fa-f]+)/);
+        const frame = parseRx(line);
         heard.hidden = false;
-        heard.textContent = t("radio.heard", { addr: m ? m[1] : "?", freq: fs });
+        heard.textContent = t("radio.heard", { addr: frame ? frame.addr : "?", freq: fs });
         $("radioFreq").value = fs;
         radioReady = true;
         $("radioListen").disabled = true;
@@ -1084,13 +1091,10 @@ async function startDiscover() {
     } catch (e) {
       continue;
     }
-    const ma = line.match(/addr=0x([0-9A-Fa-f]+)/);
-    const mc = line.match(/code=(\d+)/);
-    if (!ma) continue;
-    const addr = ma[1].toUpperCase().padStart(6, "0");
-    if (known.has(addr) || seen.has(addr)) continue;
-    seen.add(addr);
-    addDiscoverCard(addr, mc ? Number(mc[1]) : 0);
+    const frame = parseRx(line);
+    if (!frame || known.has(frame.addr) || seen.has(frame.addr)) continue;
+    seen.add(frame.addr);
+    addDiscoverCard(frame.addr, frame.code);
   }
 }
 
@@ -1165,12 +1169,9 @@ async function linkRemote(idx) {
         continue;
       }
       if (!linking) return;
-      const ma = line.match(/addr=0x([0-9A-Fa-f]+)/);
-      const mc = line.match(/code=(\d+)/);
-      if (!ma) continue;
-      const addr = ma[1].toUpperCase().padStart(6, "0");
-      if (known.has(addr)) continue;
-      mutate(`link ${idx} ${addr} ${mc ? mc[1] : 0}`);
+      const frame = parseRx(line);
+      if (!frame || known.has(frame.addr)) continue;
+      mutate(`link ${idx} ${frame.addr} ${frame.code}`);
       return;
     }
   } finally {
