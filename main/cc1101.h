@@ -33,7 +33,6 @@ extern "C" {
 
 typedef struct {
     spi_device_handle_t spi;
-    float               freq_mhz;
 } cc1101_t;
 
 /**
@@ -48,11 +47,6 @@ bool  cc1101_init(cc1101_t *dev);
  * @param freq_mhz Carrier frequency in MHz.
  */
 void  cc1101_set_frequency(cc1101_t *dev, float freq_mhz);
-
-/**
- * @return The current carrier frequency in MHz.
- */
-float cc1101_get_frequency(const cc1101_t *dev);
 
 /**
  * Set the OOK TX level by index into cc1101_tx_power_dbm[] (out-of-range clamps

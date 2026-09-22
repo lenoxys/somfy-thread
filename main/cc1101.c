@@ -217,10 +217,9 @@ bool cc1101_init(cc1101_t *dev)
 
     for (size_t i = 0; i < sizeof(init_regs) / sizeof(init_regs[0]); i++)
         cc1101_write_reg(dev, init_regs[i][0], init_regs[i][1]);
-    dev->freq_mhz = BOARD_DEFAULT_FREQ_MHZ;
-    set_freq_regs(dev, dev->freq_mhz);
+    set_freq_regs(dev, BOARD_DEFAULT_FREQ_MHZ);
     cc1101_strobe(dev, CC1101_SIDLE);
-    ESP_LOGI(TAG, "init OK (OOK %.3f MHz)", dev->freq_mhz);
+    ESP_LOGI(TAG, "init OK (OOK %.3f MHz)", BOARD_DEFAULT_FREQ_MHZ);
     return true;
 }
 
@@ -229,14 +228,11 @@ bool cc1101_init(cc1101_t *dev)
  */
 void cc1101_set_frequency(cc1101_t *dev, float freq_mhz)
 {
-    dev->freq_mhz = freq_mhz;
     cc1101_strobe(dev, CC1101_SIDLE);
     set_freq_regs(dev, freq_mhz);
     cc1101_strobe(dev, CC1101_SCAL);
     esp_rom_delay_us(2000);
 }
-
-float cc1101_get_frequency(const cc1101_t *dev) { return dev->freq_mhz; }
 
 /**
  * Move to IDLE then TX; FS auto-calibration (MCSM0) runs on this transition.
