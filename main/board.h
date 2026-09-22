@@ -7,8 +7,6 @@
 // CC1101 SPI is low-speed, so GPIO-matrix routing on these pins is adequate.
 #pragma once
 
-#define BOARD_NAME              "waveshare-c6"
-
 #define CC1101_PIN_SCK          19
 #define CC1101_PIN_MISO         20
 #define CC1101_PIN_MOSI         4
