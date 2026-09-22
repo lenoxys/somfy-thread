@@ -1406,17 +1406,21 @@ async function beginFlash() {
   $("flashConfirmModal").hidden = false;
 }
 
+/** Download generated content through a temporary object URL. */
+function download(data, name, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data], { type }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 /** Download the current config (global radio freq + shade table) as JSON. */
 async function exportBackup() {
   const line = await request("export", (l) => l.startsWith("["));
   const freq = await request("freq", (l) => /^\d+\.\d+$/.test(l.trim()));
   const data = JSON.stringify({ freq: parseFloat(freq), shades: JSON.parse(line) });
-  const blob = new Blob([data], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "somfy-thread-backup.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
+  download(data, "somfy-thread-backup.json", "application/json");
 }
 
 /**
@@ -1631,12 +1635,7 @@ function stepperNav(e) {
 $("stepper").addEventListener("click", stepperNav);
 $("stepper").addEventListener("keydown", stepperNav);
 $("dlLog").addEventListener("click", () => {
-  const blob = new Blob([logEl.textContent], { type: "text/plain" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "somfy-thread-serial.log";
-  a.click();
-  URL.revokeObjectURL(a.href);
+  download(logEl.textContent, "somfy-thread-serial.log", "text/plain");
 });
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
 $("import").addEventListener("click", () => $("importFile").click());
