@@ -173,15 +173,6 @@ int cc1101_rssi_dbm(cc1101_t *dev)
 }
 
 /**
- * Load the OOK power table at the default level (+10 dBm at 433 MHz); index 0
- * stays carrier-off. Persisted power/bandwidth are applied over this by the app.
- */
-static void set_pa_table_ook(cc1101_t *dev)
-{
-    cc1101_set_power(dev, CC1101_TX_POWER_COUNT - 1);
-}
-
-/**
  * Reset the chip, verify it responds, and apply the OOK/433 configuration.
  * @return false if the chip does not respond over SPI.
  */
@@ -226,8 +217,6 @@ bool cc1101_init(cc1101_t *dev)
 
     for (size_t i = 0; i < sizeof(init_regs) / sizeof(init_regs[0]); i++)
         cc1101_write_reg(dev, init_regs[i][0], init_regs[i][1]);
-    set_pa_table_ook(dev);
-
     dev->freq_mhz = BOARD_DEFAULT_FREQ_MHZ;
     set_freq_regs(dev, dev->freq_mhz);
     cc1101_strobe(dev, CC1101_SIDLE);
