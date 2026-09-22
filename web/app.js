@@ -569,12 +569,6 @@ async function scanAndListen() {
   }
 }
 
-/** Cancel an in-flight scanAndListen() sweep and close its modal. */
-function cancelScan() {
-  scanning = false;
-  $("scanModal").hidden = true;
-}
-
 /* ── shade rendering ──────────────────────────────────────────────────── */
 
 let shades = [];
@@ -709,7 +703,9 @@ function renderManage() {
     tr.classList.toggle("disabled", !s.on);
     const detail = shadeDetailRow(s);
     tr.append(nameTd(s, detail));
-    tr.append(switchTd(s.on, (on) => save(`on ${s.idx} ${on ? 1 : 0}`)));
+    const onCell = document.createElement("td");
+    onCell.append(switchEl(s.on, (on) => save(`on ${s.idx} ${on ? 1 : 0}`)));
+    tr.append(onCell);
     tr.append(posTd(s));
     tr.append(motorTd(s.idx));
     const rm = document.createElement("td");
@@ -1040,13 +1036,6 @@ function switchEl(on, onToggle) {
   return lab;
 }
 
-/** Cell wrapping a toggle switch for the On state. */
-function switchTd(on, onToggle) {
-  const cell = document.createElement("td");
-  cell.append(switchEl(on, onToggle));
-  return cell;
-}
-
 function mkBtn(label, onClick, cls = "") {
   const b = document.createElement("button");
   b.className = ("btn " + cls).trim();
@@ -1098,12 +1087,6 @@ async function startDiscover() {
   }
 }
 
-/** Stop the discovery loop and hide its panel. */
-function stopDiscover() {
-  discovering = false;
-  $("discoverPanel").hidden = true;
-}
-
 /**
  * Show a card for a newly heard remote: its address, a name field, and
  * Add/Ignore. Add creates a shade with its own virtual remote and registers this
@@ -1153,7 +1136,7 @@ function linkControl(s) {
  * Associate a physical wall remote with shade `idx`: open a blocking modal, then
  * listen for the next RF frame whose address is not already a shade's own
  * address and store it as the monitored linked remote (seeding rolling from the
- * heard code). The modal's Cancel button aborts via cancelLink().
+ * heard code). The modal's Cancel button aborts the pending capture.
  */
 async function linkRemote(idx) {
   if (linking) return;
@@ -1178,17 +1161,6 @@ async function linkRemote(idx) {
     linking = false;
     $("linkModal").hidden = true;
   }
-}
-
-/** Cancel a pending linkRemote() capture and close its modal. */
-function cancelLink() {
-  linking = false;
-  $("linkModal").hidden = true;
-}
-
-/** Add a motor without a remote: same guided flow as discovery, minus the linked remote. */
-function addMotor() {
-  addShade("", null, 0);
 }
 
 /**
@@ -1229,21 +1201,6 @@ function beginPair(idx) {
   $("pairTest").hidden = true;
   $("pairDone").hidden = true;
   $("pairModal").hidden = false;
-}
-
-/** Send this shade's PROG frame, then reveal the test controls and Done. */
-function pairProg() {
-  if (pairIdx < 0) return;
-  send(`tx ${pairIdx} prog`);
-  $("pairProg").hidden = true;
-  $("pairTest").hidden = false;
-  $("pairDone").hidden = false;
-}
-
-/** Close the pairing modal, leaving discovery open to add the next shade. */
-function endPair() {
-  $("pairModal").hidden = true;
-  pairIdx = -1;
 }
 
 /* ── actions ──────────────────────────────────────────────────────────── */
@@ -1451,11 +1408,6 @@ async function importBackup(file) {
 
 let pairQr = "";
 
-/** Hide the whole Matter label (paired state, or before checking). */
-function hidePairing() {
-  $("matterLabel").hidden = true;
-}
-
 /** Group an 11-digit Matter manual code as 4-3-4 (e.g. 3497-011-2332). */
 function formatManual(code) {
   const d = code.replace(/\D/g, "");
@@ -1564,7 +1516,7 @@ async function pollMatterOnce() {
  */
 async function loadMatter() {
   matterStat = "";
-  hidePairing();
+  $("matterLabel").hidden = true;
   const st = $("matterStatus");
   st.hidden = false;
   st.classList.remove("bad");
@@ -1603,14 +1555,29 @@ async function showPairing() {
 
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 $("discover").addEventListener("click", () => startDiscover().catch((e) => log("ERR " + e.message)));
-$("discoverDone").addEventListener("click", () => stopDiscover());
-$("linkCancel").addEventListener("click", () => cancelLink());
-$("addMotor").addEventListener("click", () => addMotor());
-$("pairProgBtn").addEventListener("click", () => pairProg());
+$("discoverDone").addEventListener("click", () => {
+  discovering = false;
+  $("discoverPanel").hidden = true;
+});
+$("linkCancel").addEventListener("click", () => {
+  linking = false;
+  $("linkModal").hidden = true;
+});
+$("addMotor").addEventListener("click", () => addShade("", null, 0));
+$("pairProgBtn").addEventListener("click", () => {
+  if (pairIdx < 0) return;
+  send(`tx ${pairIdx} prog`);
+  $("pairProg").hidden = true;
+  $("pairTest").hidden = false;
+  $("pairDone").hidden = false;
+});
 $("pairOpen").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} up`); });
 $("pairStop").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} stop`); });
 $("pairClose").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} down`); });
-$("pairDone").addEventListener("click", () => endPair());
+$("pairDone").addEventListener("click", () => {
+  $("pairModal").hidden = true;
+  pairIdx = -1;
+});
 $("reconnect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 if ("serial" in navigator)
   navigator.serial.addEventListener("disconnect", (e) => { if (e.target === port) onDisconnect(); });
@@ -1644,7 +1611,10 @@ $("importFile").addEventListener("change", (e) => {
 });
 $("radioFreq").addEventListener("change", (e) => save(`freq ${e.target.value}`));
 $("radioListen").addEventListener("click", () => scanAndListen());
-$("scanCancel").addEventListener("click", () => cancelScan());
+$("scanCancel").addEventListener("click", () => {
+  scanning = false;
+  $("scanModal").hidden = true;
+});
 $("radioPower").addEventListener("change", (e) => save(`power ${e.target.value}`));
 $("radioRxbw").addEventListener("change", (e) => save(`rxbw ${e.target.value}`));
 $("radioScan").addEventListener("click", () => scanBand().catch((e) => log("ERR " + e.message)));
