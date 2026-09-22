@@ -1565,6 +1565,7 @@ $("linkCancel").addEventListener("click", () => {
   linking = false;
   $("linkModal").hidden = true;
 });
+/** Add a motor without a heard remote. */
 $("addMotor").addEventListener("click", () => addShade("", null, 0));
 /** Send the new shade's PROG frame and reveal its test controls. */
 $("pairProgBtn").addEventListener("click", () => {
