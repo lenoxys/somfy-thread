@@ -29,8 +29,14 @@ def open_port():
 def send(p, c, wait=1.2):
     p.write((c + "\r\n").encode())
     p.flush()
-    time.sleep(wait)
-    return p.read(p.in_waiting or 1).decode(errors="replace")
+    deadline = time.time() + wait
+    lines = []
+    while time.time() < deadline:
+        line = p.readline()
+        lines.append(line)
+        if line.strip() == b"Done":
+            break
+    return b"".join(lines).decode(errors="replace")
 
 
 def first(out, pred):
