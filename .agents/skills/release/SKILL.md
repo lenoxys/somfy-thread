@@ -14,11 +14,11 @@ in lockstep. Never re-add `set(PROJECT_VER …)` to `CMakeLists.txt` — it over
 `version.txt` and reintroduces the "installed X, vY available" false-positive.
 
 Flow: **you publish the release, CI attaches the bin.** Publishing a release fires
-`firmware.yml` (build → attest → `curl`-attach the merged bin to the release) and
-`pages.yml` (mirror the bin to `web/fw/<tag>/` so the flasher serves it
-same-origin). `gh` is NOT installed in the esp-matter build container, so CI
-attaches via `curl` to the release `upload_url` — don't add `gh` steps to the
-container job.
+`firmware.yml` (build → attest → `curl`-attach the merged bin to the release).
+Its successful completion fires `pages.yml`, which mirrors the bin to
+`web/fw/<tag>/` so the flasher serves it same-origin. `gh` is NOT installed in
+the esp-matter build container, so CI attaches via `curl` to the release
+`upload_url` — don't add `gh` steps to the container job.
 
 ## Steps
 
@@ -48,11 +48,10 @@ container job.
    gh release view vX.Y.Z --json assets -q '[.assets[].name]'   # expect one .bin
    ```
 
-6. **Re-mirror on pages.** `pages.yml` runs on `release:published`, which fires
-   BEFORE the bin is attached — so its first run misses it. After the bin is
-   attached, re-run pages to mirror it:
+6. **Wait for Pages.** The successful firmware workflow triggers `pages.yml`,
+   which mirrors the attached binary. Verify the result:
    ```sh
-   gh workflow run pages.yml && sleep 30
+   gh run list --workflow pages.yml --limit 1 --json status,conclusion
    curl -fsSI "https://lenoxys.github.io/somfy-thread/fw/vX.Y.Z/somfy-thread-esp32c6-vX.Y.Z.bin" | head -1
    ```
 
@@ -69,8 +68,6 @@ container job.
   (needs `gh` in the container or a curl-based draft flow — not the current setup).
 - **Botched release recovery:** `gh release delete <tag> --cleanup-tag --yes`, then
   re-cut. If immutability was ever on for that tag, bump to the next number.
-- **pages ordering:** always the manual `gh workflow run pages.yml` in step 6 —
-  the automatic pages run mirrors before the bin exists.
 - **Manual build (no release):** `workflow_dispatch` on `firmware.yml` builds +
   attests only (attaches nothing). Local build: see `AGENTS.md`.
 
