@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Unlicense
 # Build the ESP32-C6 firmware, attest its provenance (SLSA/Sigstore), and attach
-# the merged WebSerial .bin plus the Matter OTA image to a published GitHub
-# Release. workflow_dispatch builds and attests both without attaching them.
+# the merged WebSerial .bin to a published GitHub Release. workflow_dispatch
+# builds and attests it without attaching it.
 #
 # Uses Espressif's prebuilt esp-matter image (esp-idf + esp-matter already
 # installed) so there's no clone/bootstrap. Bump the image tag when upgrading;
@@ -38,27 +38,16 @@ jobs:
           VER="${{ github.event.release.tag_name }}"
           [ -n "$VER" ] && echo "$VER" > version.txt || VER=dev
           BIN="somfy-thread-esp32c6-$VER.bin"
-          OTA="somfy-thread-esp32c6-$VER.ota"
           echo "BIN=$BIN" >> "$GITHUB_ENV"
-          echo "OTA=$OTA" >> "$GITHUB_ENV"
           idf.py set-target esp32c6
           idf.py build
-          OTA_VERSION="$(< build/matter-version.txt)"
-          grep -qx '#define CONFIG_DEVICE_VENDOR_ID 0xFFF1' build/config/sdkconfig.h
-          grep -qx '#define CONFIG_DEVICE_PRODUCT_ID 0x8000' build/config/sdkconfig.h
-          python "$ESP_MATTER_PATH/connectedhomeip/connectedhomeip/src/app/ota_image_tool.py" create \
-            -v 0xFFF1 -p 0x8000 -vn "$OTA_VERSION" -vs "$VER" -da sha256 \
-            -mi 0 -ma "$((OTA_VERSION - 1))" \
-            build/somfy_thread.bin "$OTA"
           cd build
           esptool.py --chip esp32c6 merge_bin -o "$GITHUB_WORKSPACE/$BIN" @flash_args
 
       - name: Attest firmware provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: |
-            ${{ github.workspace }}/${{ env.BIN }}
-            ${{ github.workspace }}/${{ env.OTA }}
+          subject-path: ${{ github.workspace }}/${{ env.BIN }}
 
       - name: Attach firmware to release
         if: github.event_name == 'release'
@@ -67,10 +56,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           UPLOAD_URL: ${{ github.event.release.upload_url }}
         run: |
-          for asset in "$BIN" "$OTA"; do
-            url="${UPLOAD_URL%%\{*}?name=$asset"
-            curl -fsSL -X POST "$url" \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"$GITHUB_WORKSPACE/$asset"
-          done
+          url="${UPLOAD_URL%%\{*}?name=$BIN"
+          curl -fsSL -X POST "$url" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$GITHUB_WORKSPACE/$BIN"

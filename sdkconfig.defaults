@@ -38,9 +38,6 @@ CONFIG_ENABLE_EXTENDED_DISCOVERY=y
 # esp-matter console shell (host of our config commands).
 CONFIG_ENABLE_CHIP_SHELL=y
 
-# OTA requestor so firmware can be updated over Matter.
-CONFIG_ENABLE_OTA_REQUESTOR=y
-
 # BLIND_MAX_COUNT (32) WindowCovering shades plus the one Aggregator endpoint
 # that makes the node a bridge, all dynamic endpoints.
 CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=33
