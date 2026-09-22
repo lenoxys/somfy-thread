@@ -1364,10 +1364,10 @@ async function beginFlash() {
 }
 
 /** Download generated content through a temporary object URL. */
-function download(data, name, type) {
+function download(contents, filename, mimeType) {
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([data], { type }));
-  a.download = name;
+  a.href = URL.createObjectURL(new Blob([contents], { type: mimeType }));
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -1555,15 +1555,18 @@ async function showPairing() {
 
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 $("discover").addEventListener("click", () => startDiscover().catch((e) => log("ERR " + e.message)));
+/** Stop discovery and close its panel. */
 $("discoverDone").addEventListener("click", () => {
   discovering = false;
   $("discoverPanel").hidden = true;
 });
+/** Cancel the pending remote-link capture. */
 $("linkCancel").addEventListener("click", () => {
   linking = false;
   $("linkModal").hidden = true;
 });
 $("addMotor").addEventListener("click", () => addShade("", null, 0));
+/** Send the new shade's PROG frame and reveal its test controls. */
 $("pairProgBtn").addEventListener("click", () => {
   if (pairIdx < 0) return;
   send(`tx ${pairIdx} prog`);
@@ -1574,6 +1577,7 @@ $("pairProgBtn").addEventListener("click", () => {
 $("pairOpen").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} up`); });
 $("pairStop").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} stop`); });
 $("pairClose").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} down`); });
+/** Close the pairing modal after its test. */
 $("pairDone").addEventListener("click", () => {
   $("pairModal").hidden = true;
   pairIdx = -1;
@@ -1611,6 +1615,7 @@ $("importFile").addEventListener("change", (e) => {
 });
 $("radioFreq").addEventListener("change", (e) => save(`freq ${e.target.value}`));
 $("radioListen").addEventListener("click", () => scanAndListen());
+/** Cancel an in-flight radio scan. */
 $("scanCancel").addEventListener("click", () => {
   scanning = false;
   $("scanModal").hidden = true;
