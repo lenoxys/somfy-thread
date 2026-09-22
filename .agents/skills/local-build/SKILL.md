@@ -55,7 +55,7 @@ docker run --rm -v "$PWD":/work -w /work \
     . "$IDF_PATH/export.sh"
     . "$ESP_MATTER_PATH/export.sh"
     cd /work
-    idf.py set-target esp32c6
+    if [ ! -f build/CMakeCache.txt ]; then idf.py set-target esp32c6; fi
     idf.py build
     cd /work/build
     esptool.py --chip esp32c6 merge_bin -o /work/somfy-thread-esp32c6-dev.bin @flash_args
@@ -63,13 +63,17 @@ docker run --rm -v "$PWD":/work -w /work \
   ' > /tmp/somfy_build.log 2>&1
 ```
 
+Run `idf.py set-target esp32c6` manually when the target actually changes.
+`set-target` regenerates the build tree and turns an incremental build into a
+full ~1875-object rebuild.
+
 ### CRITICAL gotcha — `cd /work` AFTER the exports
 
 `. "$ESP_MATTER_PATH/export.sh"` **changes the shell CWD** to
 `/opt/espressif/esp-matter`. If you run `idf.py` without `cd /work` first, it
 builds the **esp-matter repo itself** (fails at its `CMakeLists.txt:196
 idf_build_get_property`). Always `cd /work` after sourcing both `export.sh`
-scripts, before `set-target`/`build`.
+scripts, before `build`.
 
 `git config --global --add safe.directory /work` silences the dubious-ownership
 warning from the bind mount.

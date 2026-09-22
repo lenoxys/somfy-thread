@@ -29,6 +29,8 @@ container job.
 
 2. **Pick the next version.** Bump `vMAJOR.MINOR.PATCH`. Check existing:
    `gh release list`.
+   Increment `PROJECT_VER_NUMBER` in `CMakeLists.txt`; Matter OTA numbers are
+   never reused, including after a private or failed OTA test.
 
 3. **Write end-user release notes** to a temp file: what the **firmware** does,
    not the web UI or dev internals. Concise, formatted, one line per bullet. May

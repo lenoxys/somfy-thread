@@ -3,10 +3,10 @@
 # submodules installed, on ESP_MATTER_PATH, and esp-idf on IDF_PATH.
 cmake_minimum_required(VERSION 3.5)
 
-# Firmware version is left unset so esp-idf derives it from `git describe`, i.e.
-# the release tag (v0.0.1); esp_app_get_description()->version and the `version`
-# console command report it, and the web configurator compares it to the latest
-# GitHub release tag.
+# Firmware version string comes from version.txt in release builds and git
+# describe otherwise. The numeric Matter OTA version must increase per release.
+set(PROJECT_VER_NUMBER 6)
+file(WRITE "${CMAKE_BINARY_DIR}/matter-version.txt" "${PROJECT_VER_NUMBER}\n")
 
 if(NOT DEFINED ENV{ESP_MATTER_PATH})
     message(FATAL_ERROR "Set ESP_MATTER_PATH to the path of the esp-matter repo")

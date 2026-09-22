@@ -395,6 +395,8 @@ static SomfyWCDelegate s_wc_delegates[BLIND_MAX_COUNT];
  * Node device type and a Bridged Device Basic Information NodeLabel set to the
  * shade's name, so a bridge-aware controller (the Aggregator on endpoint 1)
  * shows each cover under its own name instead of the shared product name.
+ * Rewrites ConfigStatus after cluster creation because esp-matter persists this
+ * attribute and otherwise restores the pre-v0.0.5 non-operational value.
  * Creates the Descriptor cluster explicitly (the plain endpoint::create path
  * skips it) so the endpoint exposes its DeviceTypeList.
  * @return ESP_OK, or the error from the descriptor / window covering / bridged
@@ -408,6 +410,9 @@ static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
     if (!cluster::descriptor::create(ep, &desc_cfg, CLUSTER_FLAG_SERVER)) return ESP_FAIL;
     window_covering::config_t wc;
     wc.window_covering.type = 0x00;
+    wc.window_covering.config_status =
+        chip::to_underlying(WC::ConfigStatus::kOperational) |
+        chip::to_underlying(WC::ConfigStatus::kLiftPositionAware);
     wc.window_covering.delegate = &s_wc_delegates[idx];
     wc.window_covering.feature_flags =
         cluster::window_covering::feature::lift::get_id() |
@@ -415,6 +420,9 @@ static esp_err_t wc_add_clusters(endpoint_t *ep, int idx)
     wc.window_covering.features.position_aware_lift.current_position_lift_percent_100ths = nullable<uint16_t>(pos);
     wc.window_covering.features.position_aware_lift.target_position_lift_percent_100ths = nullable<uint16_t>(pos);
     esp_err_t err = window_covering::add(ep, &wc);
+    if (err != ESP_OK) return err;
+    esp_matter_attr_val_t config_status = esp_matter_bitmap8(wc.window_covering.config_status);
+    err = attribute::update(endpoint::get_id(ep), WC::Id, WC::Attributes::ConfigStatus::Id, &config_status);
     if (err != ESP_OK) return err;
 
     bridged_node::config_t bn;
