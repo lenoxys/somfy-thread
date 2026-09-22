@@ -13,14 +13,10 @@
 extern "C" {
 #endif
 
-#define CC1101_IOCFG0   0x02
-#define CC1101_PKTCTRL0 0x08
 #define CC1101_FREQ2    0x0D
 #define CC1101_FREQ1    0x0E
 #define CC1101_FREQ0    0x0F
 #define CC1101_MDMCFG4  0x10
-#define CC1101_MDMCFG2  0x12
-#define CC1101_FREND0   0x22
 #define CC1101_PATABLE  0x3E
 #define CC1101_RSSI     0x34
 
@@ -32,7 +28,6 @@ extern "C" {
 #define CC1101_SRX      0x34
 #define CC1101_STX      0x35
 #define CC1101_SIDLE    0x36
-#define CC1101_SNOP     0x3D
 
 #define CC1101_XTAL_HZ  26000000UL
 
@@ -107,11 +102,6 @@ void    cc1101_write_reg(cc1101_t *dev, uint8_t addr, uint8_t val);
  * Read one status register (burst bit is applied internally).
  */
 uint8_t cc1101_read_reg(cc1101_t *dev, uint8_t addr);
-
-/**
- * Send a command strobe.
- */
-void    cc1101_strobe(cc1101_t *dev, uint8_t cmd);
 
 #ifdef __cplusplus
 }

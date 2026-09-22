@@ -8,6 +8,7 @@
 #include <string.h>
 
 static const char *TAG = "cc1101";
+static void cc1101_strobe(cc1101_t *dev, uint8_t cmd);
 
 /**
  * Register set for 433 MHz OOK in asynchronous-serial mode, shared by TX and RX.
@@ -286,7 +287,7 @@ uint8_t cc1101_read_reg(cc1101_t *dev, uint8_t addr)
     return spi_read_status(dev, addr);
 }
 
-void cc1101_strobe(cc1101_t *dev, uint8_t cmd)
+static void cc1101_strobe(cc1101_t *dev, uint8_t cmd)
 {
     uint8_t status = 0;
     spi_transaction_t t = { .length = 8, .tx_buffer = &cmd, .rx_buffer = &status };
