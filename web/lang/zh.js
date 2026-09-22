@@ -149,7 +149,7 @@ export default {
 
   "matter.title": "添加到你的智能家居",
   "matter.intro": "这是一个标准的 Matter-over-Thread 设备。获取下方的配对码，在你使用的任意 App 或中枢中添加它——用哪个控制器都可以。",
-  "matter.help": "配对通过 Bluetooth 进行，随后设备加入你的 Thread 网络——因此你需要在该网络中有一个可访问的 Thread 边界路由器（许多中枢/音箱内置，任何品牌均可）。配对时请让开发板靠近手机。这与你为每个窗帘所做的 Somfy 射频 PROG 是相互独立的。",
+  "matter.help": "配对通过 Bluetooth 进行，随后设备加入你的 Thread 网络——因此你需要在该网络中有一个可访问的 Thread 边界路由器（许多中枢/音箱内置，任何品牌均可）。配对前，请在 Home Assistant 的 Matter Server 设置中启用“Enable test-net DCL usage.”；somfy-thread 添加成功后即可再次关闭。配对时请让开发板靠近手机。这与你为每个窗帘所做的 Somfy 射频 PROG 是相互独立的。",
   "matter.checking": "正在检查配对状态…",
   "matter.unpaired": "尚未添加——在你的 Matter App 或中枢中扫描或输入此配对码。",
   "matter.paired": "已添加到 {n} 个 Matter 生态系统。要将它添加到另一个 App 或中枢，请打开一个新的配对窗口。",

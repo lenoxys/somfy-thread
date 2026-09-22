@@ -21,7 +21,7 @@ Open the page in **Chrome or Edge**, plug the board into USB, and follow the wiz
 
 Each shade exposes its own WindowCovering endpoint with a stable Matter identity; rolling codes are persisted before every transmit, so a reboot never rewinds them.
 
-> **Test certificate — allow it on your controller.** Builds ship an uncertified **test/development attestation certificate**. In **Home Assistant** (Matter Server) enable **"Enable test-net DCL usage."** before pairing. **Apple Home** and **Google Home** offer no such override and will refuse the device until the project ships a certified identity.
+> **Test certificate — allow it during pairing.** Builds ship an uncertified **test/development attestation certificate**. In **Home Assistant** (Matter Server), enable **"Enable test-net DCL usage."** before pairing. Once somfy-thread has been added successfully, you can turn it off again; it is only required for onboarding. **Apple Home** and **Google Home** offer no such override and will refuse the device until the project ships a certified identity.
 
 ## Hardware
 

@@ -150,7 +150,7 @@ export default {
 
   "matter.title": "Ajouter à votre maison connectée",
   "matter.intro": "Il s'agit d'un appareil Matter-over-Thread standard. Récupérez le code ci-dessous et ajoutez-le dans l'application ou le hub que vous utilisez — le contrôleur importe peu.",
-  "matter.help": "L'appairage se fait via Bluetooth, puis l'appareil rejoint votre réseau Thread — il vous faut donc un routeur de bordure Thread accessible sur ce réseau (intégré à de nombreux hubs/enceintes ; toutes les marques conviennent). Gardez la carte près du téléphone pendant l'appairage. C'est distinct du PROG RF Somfy réalisé pour chaque store.",
+  "matter.help": "L'appairage se fait via Bluetooth, puis l'appareil rejoint votre réseau Thread — il vous faut donc un routeur de bordure Thread accessible sur ce réseau (intégré à de nombreux hubs/enceintes ; toutes les marques conviennent). Dans les réglages du serveur Matter de Home Assistant, activez « Enable test-net DCL usage. » avant l'appairage ; vous pouvez le désactiver dès que somfy-thread a été ajouté. Gardez la carte près du téléphone pendant l'appairage. C'est distinct du PROG RF Somfy réalisé pour chaque store.",
   "matter.checking": "Vérification de l'état d'appairage…",
   "matter.unpaired": "Pas encore ajouté — scannez ou saisissez ce code dans votre application ou hub Matter.",
   "matter.paired": "Déjà ajouté à {n} écosystème(s) Matter. Pour l'ajouter à une autre application ou hub, ouvrez une nouvelle fenêtre d'appairage.",

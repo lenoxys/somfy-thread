@@ -149,7 +149,7 @@ export default {
 
   "matter.title": "Add to your smart home",
   "matter.intro": "This is a standard Matter-over-Thread device. Get the code below and add it in whatever app or hub you use — the controller doesn't matter.",
-  "matter.help": "Commissioning happens over Bluetooth, then the device joins your Thread network — so you need a Thread border router reachable on that network (built into many hubs/speakers; any brand works). Keep the board near the phone while pairing. This is separate from the Somfy RF PROG you did per shade.",
+  "matter.help": "Commissioning happens over Bluetooth, then the device joins your Thread network — so you need a Thread border router reachable on that network (built into many hubs/speakers; any brand works). In Home Assistant's Matter Server settings, enable \"Enable test-net DCL usage.\" before pairing; you can turn it off again once somfy-thread has been added. Keep the board near the phone while pairing. This is separate from the Somfy RF PROG you did per shade.",
   "matter.checking": "Checking pairing status…",
   "matter.unpaired": "Not added yet — scan or enter this code in your Matter app or hub.",
   "matter.paired": "Already added to {n} Matter ecosystem(s). To add it to another app or hub, open a new pairing window.",

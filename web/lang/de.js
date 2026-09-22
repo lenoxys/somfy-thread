@@ -150,7 +150,7 @@ export default {
 
   "matter.title": "Zum Smart Home hinzufügen",
   "matter.intro": "Dies ist ein standardmäßiges Matter-over-Thread-Gerät. Holen Sie sich den Code unten und fügen Sie es in der App oder dem Hub Ihrer Wahl hinzu – die Steuerung spielt keine Rolle.",
-  "matter.help": "Die Inbetriebnahme erfolgt über Bluetooth, danach tritt das Gerät Ihrem Thread-Netzwerk bei – Sie benötigen also einen in diesem Netzwerk erreichbaren Thread-Border-Router (in viele Hubs/Lautsprecher integriert; jede Marke funktioniert). Halten Sie das Board beim Koppeln nah am Telefon. Dies ist unabhängig vom Somfy-RF-PROG, das Sie pro Rollo durchgeführt haben.",
+  "matter.help": "Die Inbetriebnahme erfolgt über Bluetooth, danach tritt das Gerät Ihrem Thread-Netzwerk bei – Sie benötigen also einen in diesem Netzwerk erreichbaren Thread-Border-Router (in viele Hubs/Lautsprecher integriert; jede Marke funktioniert). Aktivieren Sie vor dem Koppeln in den Matter-Server-Einstellungen von Home Assistant \"Enable test-net DCL usage.\"; sobald somfy-thread hinzugefügt wurde, können Sie die Option wieder deaktivieren. Halten Sie das Board beim Koppeln nah am Telefon. Dies ist unabhängig vom Somfy-RF-PROG, das Sie pro Rollo durchgeführt haben.",
   "matter.checking": "Kopplungsstatus wird geprüft…",
   "matter.unpaired": "Noch nicht hinzugefügt – scannen oder geben Sie diesen Code in Ihrer Matter-App oder Ihrem Hub ein.",
   "matter.paired": "Bereits zu {n} Matter-Ökosystem(en) hinzugefügt. Um es einer weiteren App oder einem weiteren Hub hinzuzufügen, öffnen Sie ein neues Kopplungsfenster.",

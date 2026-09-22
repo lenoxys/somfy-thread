@@ -150,7 +150,7 @@ export default {
 
   "matter.title": "Añádelo a tu hogar inteligente",
   "matter.intro": "Este es un dispositivo Matter-over-Thread estándar. Obtén el código de abajo y añádelo en la app o hub que uses: el controlador no importa.",
-  "matter.help": "El emparejamiento se realiza por Bluetooth y luego el dispositivo se une a tu red Thread, así que necesitas un router de frontera Thread accesible en esa red (integrado en muchos hubs/altavoces; sirve cualquier marca). Mantén la placa cerca del teléfono durante el emparejamiento. Esto es independiente del PROG por radio de Somfy que hiciste en cada persiana.",
+  "matter.help": "El emparejamiento se realiza por Bluetooth y luego el dispositivo se une a tu red Thread, así que necesitas un router de frontera Thread accesible en esa red (integrado en muchos hubs/altavoces; sirve cualquier marca). En los ajustes del servidor Matter de Home Assistant, activa \"Enable test-net DCL usage.\" antes de emparejar; puedes volver a desactivarlo cuando somfy-thread se haya añadido. Mantén la placa cerca del teléfono durante el emparejamiento. Esto es independiente del PROG por radio de Somfy que hiciste en cada persiana.",
   "matter.checking": "Comprobando el estado del emparejamiento…",
   "matter.unpaired": "Aún no añadido: escanea o introduce este código en tu app o hub de Matter.",
   "matter.paired": "Ya añadido a {n} ecosistema(s) Matter. Para añadirlo a otra app o hub, abre una nueva ventana de emparejamiento.",
