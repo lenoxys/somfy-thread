@@ -106,8 +106,6 @@ void blind_store_init(void)
     blind_store_save();
 }
 
-int blind_store_count(void) { return BLIND_MAX_COUNT; }
-
 bool blind_store_used(int idx)
 {
     return idx >= 0 && idx < BLIND_MAX_COUNT && s_shades[idx].addr != 0;

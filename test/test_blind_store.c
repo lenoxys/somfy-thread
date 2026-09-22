@@ -14,7 +14,6 @@
 int main(void)
 {
     blind_store_init();
-    assert(blind_store_count() == BLIND_MAX_COUNT);
     for (int i = 0; i < BLIND_MAX_COUNT; i++) assert(!blind_store_used(i));
 
     int a = blind_store_add(0x0000AA, 5, "kitchen");

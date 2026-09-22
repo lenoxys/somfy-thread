@@ -60,11 +60,6 @@ typedef struct {
 void     blind_store_init(void);
 
 /**
- * @return The slot-table capacity (BLIND_MAX_COUNT), not the number in use.
- */
-int      blind_store_count(void);
-
-/**
  * @return true if slot `idx` holds a shade (addr != 0).
  */
 bool     blind_store_used(int idx);
