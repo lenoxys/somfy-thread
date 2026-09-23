@@ -1328,7 +1328,7 @@ async function exportBackup() {
   const line = await request("export", (l) => l.startsWith("["));
   const freq = await request("freq", (l) => /^\d+\.\d+$/.test(l.trim()));
   const data = JSON.stringify({ freq: parseFloat(freq), shades: JSON.parse(line) });
-  download(data, `somfy-thread-backup-${fileStamp()}.json`, "application/json");
+  download(data, `${fileStamp()}-somfy-thread-backup.json`, "application/json");
 }
 
 /** Local date-time as YYYY-MM-DD-HHMM, for export filenames. */
@@ -1556,8 +1556,8 @@ function stepperNav(e) {
 $("stepper").addEventListener("click", stepperNav);
 $("stepper").addEventListener("keydown", stepperNav);
 $("dlLog").addEventListener("click", () => {
-  const head = `# somfy-thread web ${$("siteVer").textContent} · ${new Date().toLocaleString("sv-SE")}\n`;
-  download(head + logEl.textContent, `somfy-thread-serial-${fileStamp()}.log`, "text/plain");
+  const head = `# somfy-thread web ${$("siteVer").textContent} · ${new Date().toISOString()}\n`;
+  download(head + logEl.textContent, `${fileStamp()}-somfy-thread-serial.log`, "text/plain");
 });
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
 $("import").addEventListener("click", () => $("importFile").click());
