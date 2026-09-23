@@ -1377,7 +1377,9 @@ async function exportBackup() {
   const line = await request("export", (l) => l.startsWith("["));
   const freq = await request("freq", (l) => /^\d+\.\d+$/.test(l.trim()));
   const data = JSON.stringify({ freq: parseFloat(freq), shades: JSON.parse(line) });
-  download(data, "somfy-thread-backup.json", "application/json");
+  const timestamp = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short", hourCycle: "h23" })
+    .format(new Date()).replace(" ", "-").replace(":", "");
+  download(data, `somfy-thread-backup-${timestamp}.json`, "application/json");
 }
 
 /**
