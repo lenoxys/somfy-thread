@@ -124,7 +124,6 @@ export default {
   "radio.power": "TX power",
   "radio.rxbw": "RX bandwidth",
   "radio.tuneHelp": "Leave the defaults unless you know why you're changing them. Lower TX power for close motors; narrower RX bandwidth rejects more noise but needs the carrier on target.",
-  "radio.scan": "Scan band (RSSI)",
   "radio.rssi": "RSSI: {dbm} dBm",
   "radio.listen": "Scan & listen for a remote",
   "radio.ok": "Radio detected — CC1101 is responding.",

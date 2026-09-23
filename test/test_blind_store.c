@@ -30,13 +30,11 @@ int main(void)
            && s->up_lag_ms == 0 && s->down_lag_ms == 0 && s->pos == 0);
     assert(strcmp(s->name, "kitchen") == 0);
 
-    // Linked remote: none by default; set/seen advances the code only when newer;
-    // removing the shade clears its link.
+    // Linked remote: none by default, masked to 24 bits when set; removing the
+    // shade clears its link.
     assert(blind_store_link_addr(0) == 0);
-    blind_store_set_link(0, 0x6702167, 2020);
+    blind_store_set_link(0, 0x6702167);
     assert(blind_store_link_addr(0) == (0x6702167 & 0xFFFFFF));
-    blind_store_link_seen(0, 1000);  // older — ignored
-    blind_store_link_seen(0, 3000);  // newer — kept (no getter for roll; just must not crash)
 
     // Remove slot 0; slot 1 must stay put (indices never shift). The link clears.
     blind_store_remove(0);

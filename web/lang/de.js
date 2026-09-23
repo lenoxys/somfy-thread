@@ -125,7 +125,6 @@ export default {
   "radio.power": "TX-Leistung",
   "radio.rxbw": "RX-Bandbreite",
   "radio.tuneHelp": "Belassen Sie die Standardwerte, sofern Sie nicht wissen, warum Sie sie ändern. Geringere TX-Leistung für nahe Motoren; eine schmalere RX-Bandbreite unterdrückt mehr Störungen, erfordert aber, dass der Träger genau getroffen wird.",
-  "radio.scan": "Band scannen (RSSI)",
   "radio.rssi": "RSSI: {dbm} dBm",
   "radio.listen": "Scannen & auf Fernbedienung horchen",
   "radio.ok": "Funk erkannt – CC1101 antwortet.",

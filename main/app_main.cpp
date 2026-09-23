@@ -98,7 +98,7 @@ static void rf_task(void *arg)
  * Enqueue an RF command for shade `idx`. Non-blocking; drops if the queue is
  * full or not yet created.
  */
-extern "C" void app_rf_submit(int idx, uint8_t cmd)
+static void app_rf_submit(int idx, uint8_t cmd)
 {
     if (!s_rf_q) return;
     rf_job_t job = { idx, cmd };
@@ -206,15 +206,30 @@ static uint16_t wc_get_current(int idx)
 }
 
 /**
+ * @return The mid-ramp interpolated position of an active move right now.
+ */
+static uint16_t motion_now(const motion_t *m)
+{
+    return wc_motion_lerp(m->from, m->target, esp_timer_get_time() - m->start_us, m->dur_us, m->lag_us);
+}
+
+/**
  * @return The live estimated position: the mid-ramp interpolation while moving,
  *         else the last reported position.
  */
 static uint16_t motion_current(int idx)
 {
-    motion_t *m = &s_motion[idx];
-    if (m->active)
-        return wc_motion_lerp(m->from, m->target, esp_timer_get_time() - m->start_us, m->dur_us, m->lag_us);
-    return wc_get_current(idx);
+    return s_motion[idx].active ? motion_now(&s_motion[idx]) : wc_get_current(idx);
+}
+
+/**
+ * Settle shade `idx` at `pos`: report it, persist it, and mark the cover stopped.
+ */
+static void motion_settle(int idx, uint16_t pos)
+{
+    wc_set_current(idx, pos);
+    motion_persist(idx, pos);
+    wc_set_opstatus(idx, WC_OP_STOPPED);
 }
 
 static void motion_timer_stop(void)
@@ -237,10 +252,8 @@ static void motion_tick_work(intptr_t)
         motion_t *m = &s_motion[i];
         if (!m->active) continue;
         if (now - m->start_us >= m->dur_us) {
-            wc_set_current(i, m->target);
-            motion_persist(i, m->target);
             m->active = false;
-            wc_set_opstatus(i, WC_OP_STOPPED);
+            motion_settle(i, m->target);
             if (m->send_stop) app_rf_submit(i, SOMFY_MY);
         } else {
             wc_set_current(i, wc_motion_lerp(m->from, m->target, now - m->start_us, m->dur_us, m->lag_us));
@@ -281,9 +294,7 @@ static void motion_go(int idx, uint16_t target, uint16_t travel_ms, uint16_t lag
     uint16_t cur = motion_current(idx);
     if (travel_ms == 0 || target == cur) {
         s_motion[idx].active = false;
-        wc_set_current(idx, target);
-        motion_persist(idx, target);
-        wc_set_opstatus(idx, WC_OP_STOPPED);
+        motion_settle(idx, target);
         return;
     }
     motion_t *m = &s_motion[idx];
@@ -305,11 +316,8 @@ static void motion_stop(int idx)
 {
     motion_t *m = &s_motion[idx];
     if (!m->active) return;
-    uint16_t pos = wc_motion_lerp(m->from, m->target, esp_timer_get_time() - m->start_us, m->dur_us, m->lag_us);
     m->active = false;
-    wc_set_current(idx, pos);
-    motion_persist(idx, pos);
-    wc_set_opstatus(idx, WC_OP_STOPPED);
+    motion_settle(idx, motion_now(m));
 }
 
 /**
@@ -491,24 +499,6 @@ static void wc_endpoint_down(int idx)
     s_wc_ep_ids[idx] = 0;
 }
 
-/**
- * Take the CHIP stack lock and run wc_endpoint_up / _down. Endpoint lifecycle
- * ops must not race the Matter thread, and the console runs off it.
- * ScopedChipStackLock takes the lock for the scope and releases on destruction;
- * with portMAX_DELAY it blocks until acquired, and it internally skips the
- * release when the calling task already holds the lock (re-entrant call).
- */
-static bool locked_endpoint_up(int idx)
-{
-    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
-    return wc_endpoint_up(idx);
-}
-static void locked_endpoint_down(int idx)
-{
-    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
-    wc_endpoint_down(idx);
-}
-
 static bool s_diag_logs = true;
 
 /**
@@ -572,58 +562,34 @@ static void aggregator_up(void)
         ESP_LOGW(TAG, "aggregator at ep %u (not 1) — controller will not treat this node as a bridge; run `reset` then reboot to place it at ep 1", got);
 }
 
-static void locked_aggregator_up(void)
-{
-    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
-    aggregator_up();
-}
-
 /**
  * After esp_matter::start(), bring up the Aggregator first (so it claims the low
  * endpoint id / endpoint 1 when the counter is fresh), then resume+enable an
  * endpoint for every used, enabled shade so covers reappear with their stable
  * ids. Persists once at the end in case any shade had no id yet (first-ever
- * expose).
+ * expose). Endpoint lifecycle ops must not race the Matter thread, so this and
+ * every console path that adds/removes an endpoint hold ScopedChipStackLock
+ * (blocks until acquired; skips the release on a re-entrant call).
  */
 static void restore_endpoints(void)
 {
-    locked_aggregator_up();
+    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
+    aggregator_up();
     int n = 0;
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         shade_t *s = blind_store_get(i);
         if (!s->addr || !s->enabled) continue;
-        if (locked_endpoint_up(i)) n++;
+        if (wc_endpoint_up(i)) n++;
         else ESP_LOGW(TAG, "shade %d endpoint restore failed", i);
     }
     blind_store_save();
     ESP_LOGI(TAG, "restored %d shade endpoint(s)", n);
 }
 
-static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
-{
-    if (event->Type == chip::DeviceLayer::DeviceEventType::kCommissioningComplete)
-        ESP_LOGI(TAG, "Commissioning complete");
-}
-
-static esp_err_t app_identification_cb(identification::callback_type_t, uint16_t, uint8_t, uint8_t, void *)
-{
-    return ESP_OK;
-}
-
-/**
- * Attribute-update hook. WindowCovering commands are serviced by the delegate,
- * so nothing is done here.
- */
-static esp_err_t app_attribute_update_cb(attribute::callback_type_t, uint16_t, uint32_t, uint32_t,
-                                         esp_matter_attr_val_t *, void *)
-{
-    return ESP_OK;
-}
-
 /**
  * @return The Matter QR-code payload string, or "" if it cannot be generated.
  */
-extern "C" const char *app_matter_qr(void)
+static const char *app_matter_qr(void)
 {
     static char qr[chip::QRCodeBasicSetupPayloadGenerator::kMaxQRCodeBase38RepresentationLength + 1] = {0};
     chip::MutableCharSpan span(qr);
@@ -634,7 +600,7 @@ extern "C" const char *app_matter_qr(void)
 /**
  * @return The Matter manual pairing code, or "" if it cannot be generated.
  */
-extern "C" const char *app_matter_manual(void)
+static const char *app_matter_manual(void)
 {
     static char code[chip::kManualSetupLongCodeCharLength + 1] = {0};
     chip::MutableCharSpan span(code);
@@ -654,7 +620,7 @@ static void open_cw_work(intptr_t)
  *         yet paired). Lets the web branch initial pairing vs adding another
  *         ecosystem. Read directly like app_matter_qr/manual (console thread).
  */
-extern "C" int app_matter_fabric_count(void)
+static int app_matter_fabric_count(void)
 {
     return chip::Server::GetInstance().GetFabricTable().FabricCount();
 }
@@ -666,7 +632,7 @@ extern "C" int app_matter_fabric_count(void)
  *         fabrics — the two are separate (a fabric is a Matter admin; Thread is
  *         the 802.15.4 network the device joins).
  */
-extern "C" int app_thread_role(void)
+static int app_thread_role(void)
 {
     int role = 0;
     if (esp_openthread_lock_acquire(pdMS_TO_TICKS(100))) {
@@ -677,20 +643,15 @@ extern "C" int app_thread_role(void)
     return role;
 }
 
+/**
+ * Reset Matter + Thread and reboot, on the Matter thread. When `full`, also wipe
+ * the Somfy store (shades, links, radio) first — esp_matter's reset only clears
+ * CHIP's own namespaces, leaving ours intact otherwise.
+ */
 static void factory_reset_work(intptr_t full)
 {
     if (full) blind_store_factory_erase();
     esp_matter::factory_reset();
-}
-
-/**
- * Reset Matter + Thread and reboot, scheduled on the Matter thread. When `full`,
- * also wipe the Somfy store (shades, links, radio) first — esp_matter's reset
- * only clears CHIP's own namespaces, leaving ours intact otherwise.
- */
-extern "C" void app_matter_factory_reset(int full)
-{
-    LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(factory_reset_work, full));
 }
 
 /**
@@ -723,11 +684,7 @@ static void print_shades_json(bool live)
         shade_t *s = blind_store_get(i);
         char nm[sizeof(s->name) * 6 + 1];
         json_escape(s->name, nm, sizeof(nm));
-        uint16_t pos = (live && s_motion[i].active)
-            ? wc_motion_lerp(s_motion[i].from, s_motion[i].target,
-                             esp_timer_get_time() - s_motion[i].start_us,
-                             s_motion[i].dur_us, s_motion[i].lag_us)
-            : s->pos;
+        uint16_t pos = (live && s_motion[i].active) ? motion_now(&s_motion[i]) : s->pos;
         printf("%s{\"idx\":%d,\"name\":\"%s\",\"addr\":\"%06lX\",\"rolling\":%u,\"on\":%s,\"remote\":%s,\"link\":\"%06lX\",\"up_ms\":%u,\"down_ms\":%u,\"my\":%d,\"invert\":%s,\"up_lag\":%u,\"down_lag\":%u,\"pos\":%u}",
                first ? "" : ",", i, nm, (unsigned long)s->addr, s->rolling,
                s->enabled ? "true" : "false", s->remote ? "true" : "false",
@@ -740,6 +697,30 @@ static void print_shades_json(bool live)
 }
 
 static int cmd_list(int, char **) { print_shades_json(true); return 0; }
+
+/**
+ * Parse argv[1] as a shade index into `*idx`.
+ * @return The shade, or NULL (after printing "ERR bad idx") if the slot is unused.
+ */
+static shade_t *arg_shade(char **argv, int *idx)
+{
+    *idx = atoi(argv[1]);
+    if (blind_store_used(*idx)) return blind_store_get(*idx);
+    printf("ERR bad idx\n");
+    return NULL;
+}
+
+/**
+ * Join argv[from..argc) with single spaces into `dst` (size `n`), truncating.
+ */
+static void join_args(char *dst, size_t n, int argc, char **argv, int from)
+{
+    dst[0] = 0;
+    for (int i = from; i < argc; i++) {
+        if (i > from) strncat(dst, " ", n - strlen(dst) - 1);
+        strncat(dst, argv[i], n - strlen(dst) - 1);
+    }
+}
 
 static void rx_motion_work(intptr_t arg);
 
@@ -757,10 +738,6 @@ static int cmd_tx(int argc, char **argv)
 }
 
 /**
- * `name <idx> <text...>` — set a shade's display name, joining the remaining
- * arguments with spaces so multi-word names work.
- */
-/**
  * Push shade `idx`'s current name into its live Bridged Device Basic Information
  * NodeLabel so a controller reflects a rename without waiting for a reboot.
  * Runs on the Matter thread (scheduled from the console). No-op if the endpoint
@@ -775,17 +752,17 @@ static void name_update_work(intptr_t arg)
     attribute::update(s_wc_ep_ids[idx], BDBI::Id, BDBI::Attributes::NodeLabel::Id, &val);
 }
 
+/**
+ * `name <idx> <text...>` — set a shade's display name, joining the remaining
+ * arguments with spaces so multi-word names work.
+ */
 static int cmd_name(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: name <idx> <text>\n"); return 1; }
-    int idx = atoi(argv[1]);
-    shade_t *s = blind_store_get(idx);
-    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
-    s->name[0] = 0;
-    for (int i = 2; i < argc; i++) {
-        if (i > 2) strncat(s->name, " ", sizeof(s->name) - strlen(s->name) - 1);
-        strncat(s->name, argv[i], sizeof(s->name) - strlen(s->name) - 1);
-    }
+    int idx;
+    shade_t *s = arg_shade(argv, &idx);
+    if (!s) return 1;
+    join_args(s->name, sizeof(s->name), argc, argv, 2);
     blind_store_save();
     if (s_wc_ep_ids[idx])
         LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(name_update_work, (intptr_t)idx));
@@ -814,9 +791,9 @@ static int cmd_freq(int argc, char **argv)
 static int cmd_addr(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: addr <idx> <hex24>\n"); return 1; }
-    int idx = atoi(argv[1]);
-    shade_t *s = blind_store_get(idx);
-    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    int idx;
+    shade_t *s = arg_shade(argv, &idx);
+    if (!s) return 1;
     s->addr = (uint32_t)strtoul(argv[2], NULL, 16) & 0xFFFFFF;
     blind_store_save();
     printf("OK\n");
@@ -826,9 +803,9 @@ static int cmd_addr(int argc, char **argv)
 static int cmd_roll(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: roll <idx> <value>\n"); return 1; }
-    int idx = atoi(argv[1]);
-    shade_t *s = blind_store_get(idx);
-    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    int idx;
+    shade_t *s = arg_shade(argv, &idx);
+    if (!s) return 1;
     s->rolling = (uint16_t)strtoul(argv[2], NULL, 10);
     blind_store_save();
     printf("OK\n");
@@ -847,9 +824,9 @@ static int cmd_roll(int argc, char **argv)
 static int cmd_pos(int argc, char **argv)
 {
     if (argc < 4) { printf("ERR usage: pos <idx> <up_ms> <down_ms> [my_pct] [invert] [up_lag_ms] [down_lag_ms]\n"); return 1; }
-    int idx = atoi(argv[1]);
-    shade_t *s = blind_store_get(idx);
-    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    int idx;
+    shade_t *s = arg_shade(argv, &idx);
+    if (!s) return 1;
     s->up_ms   = (uint16_t)strtoul(argv[2], NULL, 10);
     s->down_ms = (uint16_t)strtoul(argv[3], NULL, 10);
     if (argc >= 5) s->my_pct = (uint8_t)strtoul(argv[4], NULL, 10);
@@ -875,14 +852,12 @@ static int cmd_add(int argc, char **argv)
     uint32_t addr    = (argc >= 2) ? (uint32_t)strtoul(argv[1], NULL, 16) & 0xFFFFFF
                                    : blind_store_gen_addr();
     uint16_t rolling = (argc >= 3) ? (uint16_t)strtoul(argv[2], NULL, 10) : 1;
-    char name[16] = {0};
-    for (int i = 3; i < argc; i++) {
-        if (i > 3) strncat(name, " ", sizeof(name) - strlen(name) - 1);
-        strncat(name, argv[i], sizeof(name) - strlen(name) - 1);
-    }
+    char name[16];
+    join_args(name, sizeof(name), argc, argv, 3);
     int idx = blind_store_add(addr, rolling, name[0] ? name : NULL);
     if (idx < 0) { printf("ERR full\n"); return 1; }
-    if (!locked_endpoint_up(idx)) { blind_store_remove(idx); printf("ERR endpoint\n"); return 1; }
+    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
+    if (!wc_endpoint_up(idx)) { blind_store_remove(idx); printf("ERR endpoint\n"); return 1; }
     blind_store_get(idx)->remote = (argc >= 2);
     blind_store_save();
     printf("OK %d\n", idx);
@@ -895,38 +870,28 @@ static int cmd_add(int argc, char **argv)
 static int cmd_remove(int argc, char **argv)
 {
     if (argc < 2) { printf("ERR usage: remove <idx>\n"); return 1; }
-    int idx = atoi(argv[1]);
-    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
-    locked_endpoint_down(idx);
+    int idx;
+    if (!arg_shade(argv, &idx)) return 1;
+    {
+        esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
+        wc_endpoint_down(idx);
+    }
     blind_store_remove(idx);
     printf("OK\n");
     return 0;
 }
 
 /**
- * `link <idx> <hexaddr> [rolling]` — associate a physical Somfy remote we only
- * listen for, so pressing that wall remote mirrors the shade's position. Never
- * transmitted as; the shade keeps its own address for TX. `unlink <idx>` clears
- * it (`link <idx> 0` also clears).
+ * `link <idx> <hexaddr>` — associate a physical Somfy remote we only listen for,
+ * so pressing that wall remote mirrors the shade's position. Never transmitted
+ * as; the shade keeps its own address for TX. `link <idx> 0` clears it.
  */
 static int cmd_link(int argc, char **argv)
 {
-    if (argc < 3) { printf("ERR usage: link <idx> <hexaddr> [rolling]\n"); return 1; }
-    int idx = atoi(argv[1]);
-    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
-    uint32_t addr = (uint32_t)strtoul(argv[2], NULL, 16);
-    uint16_t roll = (argc >= 4) ? (uint16_t)atoi(argv[3]) : 0;
-    blind_store_set_link(idx, addr, roll);
-    printf("OK\n");
-    return 0;
-}
-
-static int cmd_unlink(int argc, char **argv)
-{
-    if (argc < 2) { printf("ERR usage: unlink <idx>\n"); return 1; }
-    int idx = atoi(argv[1]);
-    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
-    blind_store_set_link(idx, 0, 0);
+    if (argc < 3) { printf("ERR usage: link <idx> <hexaddr>\n"); return 1; }
+    int idx;
+    if (!arg_shade(argv, &idx)) return 1;
+    blind_store_set_link(idx, (uint32_t)strtoul(argv[2], NULL, 16));
     printf("OK\n");
     return 0;
 }
@@ -939,13 +904,14 @@ static int cmd_unlink(int argc, char **argv)
 static int cmd_on(int argc, char **argv)
 {
     if (argc < 3) { printf("ERR usage: on <idx> <0|1>\n"); return 1; }
-    int idx = atoi(argv[1]);
-    shade_t *s = blind_store_get(idx);
-    if (!blind_store_used(idx)) { printf("ERR bad idx\n"); return 1; }
+    int idx;
+    shade_t *s = arg_shade(argv, &idx);
+    if (!s) return 1;
     bool on = atoi(argv[2]) != 0;
     if (on == s->enabled) { printf("OK\n"); return 0; }
-    if (on) { if (!locked_endpoint_up(idx)) { printf("ERR endpoint\n"); return 1; } }
-    else    { locked_endpoint_down(idx); }
+    esp_matter::lock::ScopedChipStackLock guard(portMAX_DELAY);
+    if (on) { if (!wc_endpoint_up(idx)) { printf("ERR endpoint\n"); return 1; } }
+    else    { wc_endpoint_down(idx); }
     s->enabled = on;
     blind_store_save();
     printf("OK\n");
@@ -1031,7 +997,7 @@ static int cmd_reg(int argc, char **argv)
  * its input/output changes in a way an older configuration site cannot handle.
  * The site refuses to configure a board whose proto is below the one it targets.
  */
-#define SOMFY_PROTO 9
+#define SOMFY_PROTO 10
 
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(false); return 0; }
@@ -1059,37 +1025,13 @@ static int cmd_fabrics(int, char **)
     printf("]\n");
     return 0;
 }
-static int cmd_reset(int, char **)   { printf("OK resetting\n"); app_matter_factory_reset(0); return 0; }
-static int cmd_factory(int, char **) { printf("OK factory\n");   app_matter_factory_reset(1); return 0; }
+static int cmd_reset(int, char **)   { printf("OK resetting\n"); LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(factory_reset_work, 0)); return 0; }
+static int cmd_factory(int, char **) { printf("OK factory\n");   LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(factory_reset_work, 1)); return 0; }
 static int cmd_reboot(int, char **)  { printf("OK rebooting\n"); esp_restart(); return 0; }
 static int cmd_log(int argc, char **argv)
 {
     if (argc >= 2) { s_diag_logs = atoi(argv[1]) != 0; set_diag_logs(s_diag_logs); }
     printf("{\"log\":%d}\n", s_diag_logs ? 1 : 0);
-    return 0;
-}
-
-/**
- * Debug: print the Aggregator endpoint id and, for every live cover, its Matter
- * endpoint id and the Bridged Device Basic Information NodeLabel the controller
- * is served — so the names presented over Matter can be checked against the
- * shade table without a controller.
- */
-static int cmd_dump(int, char **)
-{
-    printf("aggregator ep=%u\n", blind_store_agg_ep());
-    for (int i = 0; i < BLIND_MAX_COUNT; i++) {
-        if (!s_wc_ep_ids[i]) continue;
-        char label[40] = "<none>";
-        attribute_t *a = attribute::get(s_wc_ep_ids[i], BDBI::Id, BDBI::Attributes::NodeLabel::Id);
-        esp_matter_attr_val_t val;
-        if (a && attribute::get_val(a, &val) == ESP_OK && val.val.a.b)
-            snprintf(label, sizeof(label), "%.*s", val.val.a.s, (char *)val.val.a.b);
-        uint8_t dtc = s_wc_eps[i] ? endpoint::get_device_type_count(s_wc_eps[i]) : 0;
-        bool desc = s_wc_eps[i] && cluster::get(s_wc_eps[i], 0x001D) != NULL;
-        printf("ep=%u idx=%d label=%s devtypes=%u descriptor=%d\n", s_wc_ep_ids[i], i, label, dtc, desc);
-    }
-    printf("OK\n");
     return 0;
 }
 
@@ -1106,8 +1048,7 @@ static void register_console(void)
         {"add",    "add [hexaddr] [rolling] [name...] — register a shade", NULL, &cmd_add, NULL},
         {"remove", "remove <idx> — delete a shade",          NULL, &cmd_remove, NULL},
         {"on",     "on <idx> <0|1> — expose shade over Thread", NULL, &cmd_on,  NULL},
-        {"link",   "link <idx> <hexaddr> [rolling] — monitor a physical remote", NULL, &cmd_link,   NULL},
-        {"unlink", "unlink <idx> — stop monitoring the linked remote", NULL, &cmd_unlink, NULL},
+        {"link",   "link <idx> <hexaddr> — monitor a physical remote (0 clears)", NULL, &cmd_link,   NULL},
         {"tx",     "tx <idx> <up|down|my|stop|prog>",        NULL, &cmd_tx,     NULL},
         {"name",   "name <idx> <text>",                      NULL, &cmd_name,   NULL},
         {"freq",   "freq [mhz] — get/set device radio frequency", NULL, &cmd_freq, NULL},
@@ -1122,7 +1063,6 @@ static void register_console(void)
         {"pair",   "Open commissioning window, print code",  NULL, &cmd_pair,   NULL},
         {"mstat",  "Matter status (fabric count, thread role, window) as JSON", NULL, &cmd_mstat, NULL},
         {"fabrics","List commissioned fabrics (idx, vendor, fabric id) as JSON", NULL, &cmd_fabrics, NULL},
-        {"dump",   "Debug: aggregator ep + per-cover NodeLabel", NULL, &cmd_dump, NULL},
         {"reset",  "Reset Matter+Thread (keeps shades) and reboot", NULL, &cmd_reset,  NULL},
         {"factory","Full factory reset: erase shades + Matter+Thread, reboot", NULL, &cmd_factory, NULL},
         {"reboot", "Reboot the device (no data change)",     NULL, &cmd_reboot, NULL},
@@ -1154,15 +1094,16 @@ static void rx_motion_work(intptr_t arg)
 /**
  * Receive-frame handler (called from the RX task). Logs every decoded frame —
  * this is the sniffer, and unknown addresses reveal remotes to pair/import. For
- * a known active shade it advances the rolling-code floor (so our next transmit
- * is not stale-rejected) and feeds up/down/My into the timed position model (via
- * rx_motion_work) so the Matter controller reflects a remote used outside it;
+ * a shade's own address it advances the rolling-code floor (so our next transmit
+ * is not stale-rejected). For it or a linked remote it feeds up/down/My into the
+ * timed position model (via rx_motion_work) so the Matter controller reflects a
+ * remote used outside it;
  * other commands (PROG and the like) carry no position change and are dropped.
  * Frames within WC_RX_ECHO_GUARD_US of our own transmit are ignored as
  * self-reception.
  */
 #define WC_RX_ECHO_GUARD_US (1500 * 1000)
-extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
+static void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
 {
     int idx = -1;
     bool via_link = false;
@@ -1180,8 +1121,7 @@ extern "C" void app_on_rx_frame(uint32_t addr, uint16_t code, uint8_t cmd)
     if (esp_timer_get_time() - s_last_tx_us < WC_RX_ECHO_GUARD_US) return;
 
     shade_t *s = blind_store_get(idx);
-    if (via_link) blind_store_link_seen(idx, code);
-    else if (code > s->rolling) { s->rolling = code; blind_store_save(); }
+    if (!via_link && code > s->rolling) { s->rolling = code; blind_store_save(); }
 
     if (!s->enabled || !s_wc_ep_ids[idx]) return;  // not exposed — no endpoint to mirror to
     if (cmd != SOMFY_UP && cmd != SOMFY_DOWN && cmd != SOMFY_MY) return;
@@ -1212,7 +1152,7 @@ extern "C" void app_main(void)
     xTaskCreate(rf_task, "rf", 4096, NULL, 5, NULL);
 
     node::config_t node_config;
-    s_node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
+    s_node = node::create(&node_config, nullptr, nullptr);
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     esp_openthread_platform_config_t ot_config = {
@@ -1223,7 +1163,7 @@ extern "C" void app_main(void)
     set_openthread_platform_config(&ot_config);
 #endif
 
-    esp_matter::start(app_event_cb);
+    esp_matter::start(nullptr);
 
     set_matter_version();
     restore_endpoints();

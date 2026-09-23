@@ -125,7 +125,6 @@ export default {
   "radio.power": "Puissance TX",
   "radio.rxbw": "Bande passante RX",
   "radio.tuneHelp": "Laissez les valeurs par défaut sauf si vous savez pourquoi vous les changez. Baissez la puissance TX pour les moteurs proches ; une bande passante RX plus étroite rejette davantage de bruit mais exige une porteuse bien calée.",
-  "radio.scan": "Balayer la bande (RSSI)",
   "radio.rssi": "RSSI : {dbm} dBm",
   "radio.listen": "Balayer et écouter une télécommande",
   "radio.ok": "Radio détectée — le CC1101 répond.",

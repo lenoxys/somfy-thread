@@ -124,7 +124,6 @@ export default {
   "radio.power": "TX 出力",
   "radio.rxbw": "RX 帯域幅",
   "radio.tuneHelp": "変更する理由が分からない場合は、デフォルトのままにしてください。近くのモーターには TX 出力を下げます。RX 帯域幅を狭めるとノイズをより多く除去できますが、キャリアを正確に合わせる必要があります。",
-  "radio.scan": "バンドをスキャン（RSSI）",
   "radio.rssi": "RSSI: {dbm} dBm",
   "radio.listen": "スキャンしてリモコンを待ち受け",
   "radio.ok": "無線を検出しました。CC1101 が応答しています。",
