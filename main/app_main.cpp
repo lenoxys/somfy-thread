@@ -519,6 +519,28 @@ static void set_diag_logs(bool on)
 #endif
 }
 
+#define PRODUCT_URL "https://lenoxys.github.io/somfy-thread/"
+
+/**
+ * Publish PRODUCT_URL as the Basic Information ProductURL (the configurator,
+ * which also flashes updates). esp-matter only serves this optional attribute
+ * when it exists on endpoint 0 (basic_information integration IsAttrEnabled);
+ * its value is then read from the device-instance-info provider, which on ESP32
+ * is the chip-factory/product-url NVS key (GenericDeviceInstanceInfoProvider).
+ * Call after node::create and before esp_matter::start.
+ */
+static void set_product_url(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("chip-factory", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "product-url", PRODUCT_URL);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    cluster_t *bi = cluster::get(endpoint::get(s_node, 0), chip::app::Clusters::BasicInformation::Id);
+    if (bi) cluster::basic_information::attribute::create_product_url(bi, (char *)PRODUCT_URL, strlen(PRODUCT_URL));
+}
+
 /**
  * Bring the Aggregator endpoint online (the device type that makes this node a
  * bridge). Resumes its persisted id if it has one, else creates a fresh id and
@@ -1139,6 +1161,7 @@ extern "C" void app_main(void)
 
     node::config_t node_config;
     s_node = node::create(&node_config, nullptr, nullptr);
+    set_product_url();
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     esp_openthread_platform_config_t ot_config = {
