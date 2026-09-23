@@ -520,20 +520,6 @@ static void set_diag_logs(bool on)
 }
 
 /**
- * Report the running firmware version as the Matter Basic Information
- * SoftwareVersionString (endpoint 0), so controllers show the real build id
- * instead of CHIP's "1.0" default. Best-effort: if the attribute is absent the
- * update just no-ops. Call after esp_matter::start().
- */
-static void set_matter_version(void)
-{
-    const char *ver = esp_app_get_description()->version;
-    esp_matter_attr_val_t val = esp_matter_char_str((char *)ver, strlen(ver));
-    attribute::update(0, chip::app::Clusters::BasicInformation::Id,
-                      chip::app::Clusters::BasicInformation::Attributes::SoftwareVersionString::Id, &val);
-}
-
-/**
  * Bring the Aggregator endpoint online (the device type that makes this node a
  * bridge). Resumes its persisted id if it has one, else creates a fresh id and
  * persists it. Home Assistant only treats the node as a bridge — and so shows
@@ -1165,7 +1151,6 @@ extern "C" void app_main(void)
 
     esp_matter::start(nullptr);
 
-    set_matter_version();
     restore_endpoints();
 
     esp_matter::console::init();
