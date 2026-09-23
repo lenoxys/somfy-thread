@@ -90,7 +90,8 @@ uint32_t blind_store_gen_addr(void);
 shade_t *blind_store_get(int idx);
 
 /**
- * Persist the whole table. Call after editing name, freq, address, or rolling.
+ * Persist the shade table, links, and device-wide settings. Call after editing
+ * name, address, rolling, or any other shade field.
  */
 void     blind_store_save(void);
 
@@ -119,15 +120,9 @@ uint32_t blind_store_link_addr(int idx);
 
 /**
  * Set (addr != 0) or clear (addr == 0) slot `idx`'s monitored linked remote and
- * persist. `rolling` seeds the last-seen code.
+ * persist.
  */
-void     blind_store_set_link(int idx, uint32_t addr, uint16_t rolling);
-
-/**
- * Record a frame heard from slot `idx`'s linked remote: advance its stored
- * rolling code if `code` is newer, and persist. No-op if `idx` has no link.
- */
-void     blind_store_link_seen(int idx, uint16_t code);
+void     blind_store_set_link(int idx, uint32_t addr);
 
 /**
  * @return The device-wide carrier frequency in MHz (default BOARD_DEFAULT_FREQ_MHZ).

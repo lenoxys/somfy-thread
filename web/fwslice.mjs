@@ -12,9 +12,9 @@ export const NVS = { start: 0x9000, end: 0x10000 };
  * region [NVS.start, NVS.end). Each range is written at `offset`; the gap is
  * never touched, so esptool leaves those flash sectors (the fleet) as-is.
  */
-export function flashRanges(len, nvs = NVS) {
-  const ranges = [{ from: 0, to: Math.min(nvs.start, len), offset: 0 }];
-  if (len > nvs.end) ranges.push({ from: nvs.end, to: len, offset: nvs.end });
+export function flashRanges(len) {
+  const ranges = [{ from: 0, to: Math.min(NVS.start, len), offset: 0 }];
+  if (len > NVS.end) ranges.push({ from: NVS.end, to: len, offset: NVS.end });
   return ranges;
 }
 

@@ -124,7 +124,6 @@ export default {
   "radio.power": "发射功率",
   "radio.rxbw": "接收带宽",
   "radio.tuneHelp": "除非你清楚为何要改，否则请保留默认值。电机很近时可降低发射功率；较窄的接收带宽能抑制更多噪声，但需要载波精确对准目标频率。",
-  "radio.scan": "扫描频段（RSSI）",
   "radio.rssi": "RSSI：{dbm} dBm",
   "radio.listen": "扫描并侦听遥控器",
   "radio.ok": "已检测到无线电——CC1101 有响应。",

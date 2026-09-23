@@ -117,7 +117,7 @@ static void spi_write(cc1101_t *dev, uint8_t addr, const uint8_t *data, size_t l
  * Read a CC1101 status register. Status registers (0x30-0x3D) require the burst
  * bit set (0xC0 | addr) or the chip treats the access as a command strobe.
  */
-static uint8_t spi_read_status(cc1101_t *dev, uint8_t addr)
+uint8_t cc1101_read_reg(cc1101_t *dev, uint8_t addr)
 {
     uint8_t tx[2] = { (uint8_t)(0xC0 | addr), 0xFF };
     uint8_t rx[2] = { 0, 0 };
@@ -174,7 +174,7 @@ void cc1101_set_rxbw(cc1101_t *dev, uint8_t idx)
  */
 int cc1101_rssi_dbm(cc1101_t *dev)
 {
-    uint8_t raw = spi_read_status(dev, CC1101_RSSI);
+    uint8_t raw = cc1101_read_reg(dev, CC1101_RSSI);
     int r = raw >= 128 ? (int)raw - 256 : (int)raw;
     return r / 2 - 74;
 }
@@ -214,8 +214,8 @@ bool cc1101_init(cc1101_t *dev)
     cc1101_strobe(dev, CC1101_SRES);
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    uint8_t partnum = spi_read_status(dev, 0x30);
-    uint8_t version = spi_read_status(dev, 0x31);
+    uint8_t partnum = cc1101_read_reg(dev, 0x30);
+    uint8_t version = cc1101_read_reg(dev, 0x31);
     ESP_LOGI(TAG, "PARTNUM=0x%02X VERSION=0x%02X", partnum, version);
     if ((version == 0xFF && partnum == 0xFF) || (version == 0x00 && partnum == 0x00)) {
         ESP_LOGE(TAG, "CC1101 not responding — RF disabled");
@@ -242,27 +242,24 @@ void cc1101_set_frequency(cc1101_t *dev, float freq_mhz)
 }
 
 /**
- * Move to IDLE then TX; FS auto-calibration (MCSM0) runs on this transition.
+ * Move to IDLE, then strobe `mode` (STX or SRX); FS auto-calibration (MCSM0)
+ * runs on this transition.
  */
-void cc1101_enter_tx_mode(cc1101_t *dev)
+static void enter_mode(cc1101_t *dev, uint8_t mode)
 {
     cc1101_strobe(dev, CC1101_SIDLE);
     esp_rom_delay_us(200);
-    cc1101_strobe(dev, CC1101_STX);
+    cc1101_strobe(dev, mode);
     esp_rom_delay_us(1000);
 }
 
+void cc1101_enter_tx_mode(cc1101_t *dev) { enter_mode(dev, CC1101_STX); }
+
 /**
- * Move to IDLE then RX so the demodulated OOK stream appears on GDO2. Called at
- * startup and again after each transmit (the TX path leaves the chip idle).
+ * Called at startup and again after each transmit (the TX path leaves the chip
+ * idle), so the demodulated OOK stream appears on GDO2.
  */
-void cc1101_enter_rx_mode(cc1101_t *dev)
-{
-    cc1101_strobe(dev, CC1101_SIDLE);
-    esp_rom_delay_us(200);
-    cc1101_strobe(dev, CC1101_SRX);
-    esp_rom_delay_us(1000);
-}
+void cc1101_enter_rx_mode(cc1101_t *dev) { enter_mode(dev, CC1101_SRX); }
 
 void cc1101_idle(cc1101_t *dev)
 {
@@ -272,9 +269,4 @@ void cc1101_idle(cc1101_t *dev)
 void cc1101_write_reg(cc1101_t *dev, uint8_t addr, uint8_t val)
 {
     spi_write(dev, addr, &val, 1);
-}
-
-uint8_t cc1101_read_reg(cc1101_t *dev, uint8_t addr)
-{
-    return spi_read_status(dev, addr);
 }

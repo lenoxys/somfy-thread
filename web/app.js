@@ -10,18 +10,12 @@ import { flashRanges } from "./fwslice.mjs";
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
 
-let esptoolMod = null;
-/** Lazily import the vendored esptool-js bundle (218 KB) only when flashing. */
-function esptool() {
-  return esptoolMod || (esptoolMod = import("./vendor/esptool.js"));
-}
-
 let lastPort = null;
 
 // Serial console contract version this site targets. Must match the firmware's
 // SOMFY_PROTO (main/app_main.cpp); a board reporting a lower proto is refused
 // and prompted to update. Bump both together when the command set changes.
-const REQUIRED_PROTO = 8;
+const REQUIRED_PROTO = 10;
 
 /** Append a line to the on-screen serial log. */
 function log(s) {
@@ -151,7 +145,7 @@ async function flashSelected() {
     const fileArray = flashRanges(buf.length).map((rg) => ({ data: buf.subarray(rg.from, rg.to), address: rg.offset }));
     const dev = lastPort || (await navigator.serial.getPorts())[0] || await navigator.serial.requestPort();
     await releasePort();
-    const mod = await esptool();
+    const mod = await import("./vendor/esptool.js");
     transport = new mod.Transport(dev, false);
     usbJtag = (transport.getPid && transport.getPid()) === 0x1001;
     const loader = new mod.ESPLoader({ transport, baudrate: usbJtag ? 115200 : 460800, romBaudrate: 115200, terminal: term });
@@ -322,29 +316,23 @@ async function send(cmd) {
  * Rejects after `timeout` ms so a lost line never hangs the UI.
  */
 function request(cmd, match, timeout = 3000) {
-  return new Promise((resolve, reject) => {
-    const p = { match, resolve };
-    p.timer = setTimeout(() => {
-      const i = pending.indexOf(p);
-      if (i >= 0) pending.splice(i, 1);
-      reject(new Error("timeout: " + cmd));
-    }, timeout);
-    pending.push(p);
-    send(cmd).catch(reject);
-  });
+  return Promise.all([waitFor(match, timeout, "timeout: " + cmd), send(cmd)]).then(([line]) => line);
 }
 
 /** Resolve after ms — a plain delay for letting the radio settle between steps. */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Wait for an unsolicited line matching `match` (no command sent), e.g. an [RX] frame. */
-function waitFor(match, timeout) {
+/**
+ * Wait for a line matching `match` (no command sent), e.g. an [RX] frame.
+ * Rejects with Error(`msg`) after `timeout` ms.
+ */
+function waitFor(match, timeout, msg = "timeout") {
   return new Promise((resolve, reject) => {
     const p = { match, resolve };
     p.timer = setTimeout(() => {
       const i = pending.indexOf(p);
       if (i >= 0) pending.splice(i, 1);
-      reject(new Error("timeout"));
+      reject(new Error(msg));
     }, timeout);
     pending.push(p);
   });
@@ -476,44 +464,6 @@ function fillRadioOpts(st) {
   }
   if (st.rxbw != null) bw.value = st.rxbw;
   $("radioRssi").textContent = st.rssi != null ? t("radio.rssi", { dbm: st.rssi }) : "";
-}
-
-/**
- * Sweep the allowed band, sampling RSSI at each step, and list frequency → signal
- * so an advanced user can pick a clean-ish carrier. Passive (RX only, no transmit);
- * restores the configured frequency when done. A row click adopts that frequency.
- */
-async function scanBand() {
-  if (scanning) return;
-  scanning = true;
-  const out = $("radioScanOut");
-  const body = out.querySelector("tbody");
-  body.innerHTML = "";
-  out.hidden = false;
-  const btn = $("radioScan");
-  btn.disabled = true;
-  const prev = $("radioFreq").value;
-  try {
-    for (let f = 433.05; f <= 434.79; f += 0.1) {
-      const fs = f.toFixed(2);
-      await send(`freq ${fs}`);
-      await sleep(400);
-      const st = JSON.parse(await request("radio", (l) => l.startsWith("{")));
-      const tr = document.createElement("tr");
-      const fc = document.createElement("td");
-      fc.textContent = `${fs} MHz`;
-      const rc = document.createElement("td");
-      rc.textContent = st.rssi != null ? `${st.rssi} dBm` : "—";
-      tr.append(fc, rc);
-      tr.style.cursor = "pointer";
-      tr.addEventListener("click", () => { save(`freq ${fs}`); $("radioFreq").value = fs; });
-      body.append(tr);
-    }
-  } finally {
-    await send(`freq ${prev}`);
-    btn.disabled = false;
-    scanning = false;
-  }
 }
 
 // Carrier candidates to sweep, nominal 433.42 first then out to the crystal-drift
@@ -1083,7 +1033,7 @@ async function startDiscover() {
     const frame = parseRx(line);
     if (!frame || known.has(frame.addr) || seen.has(frame.addr)) continue;
     seen.add(frame.addr);
-    addDiscoverCard(frame.addr, frame.code);
+    addDiscoverCard(frame.addr);
   }
 }
 
@@ -1092,7 +1042,7 @@ async function startDiscover() {
  * Add/Ignore. Add creates a shade with its own virtual remote and registers this
  * heard remote as the monitored link, then guides PROG + a test (addShade).
  */
-function addDiscoverCard(addr, code) {
+function addDiscoverCard(addr) {
   const card = document.createElement("div");
   card.className = "dcard";
   const title = document.createElement("div");
@@ -1104,7 +1054,7 @@ function addDiscoverCard(addr, code) {
   name.maxLength = 15;
   name.placeholder = t("shades.namePlaceholder");
   const add = mkBtn(t("shades.addHeard"), () => {
-    addShade(name.value.trim(), addr, code);
+    addShade(name.value.trim(), addr);
     card.remove();
   }, "primary small");
   const ignore = mkBtn(t("shades.ignore"), () => card.remove(), "small");
@@ -1127,7 +1077,7 @@ function linkControl(s) {
   const label = document.createElement("span");
   label.textContent = has ? s.link : t("shades.linkNone");
   const btn = mkBtn(t(has ? "shades.unlink" : "shades.linkRemote"),
-    () => (has ? mutate(`unlink ${s.idx}`) : linkRemote(s.idx)), "small");
+    () => (has ? mutate(`link ${s.idx} 0`) : linkRemote(s.idx)), "small");
   wrap.append(label, btn);
   return wrap;
 }
@@ -1154,7 +1104,7 @@ async function linkRemote(idx) {
       if (!linking) return;
       const frame = parseRx(line);
       if (!frame || known.has(frame.addr)) continue;
-      mutate(`link ${idx} ${frame.addr} ${frame.code}`);
+      mutate(`link ${idx} ${frame.addr}`);
       return;
     }
   } finally {
@@ -1169,14 +1119,14 @@ async function linkRemote(idx) {
  * monitored link so its wall presses mirror this shade's position. Then guide the
  * user through the PROG gesture and an optional test (beginPair).
  */
-async function addShade(name, link, code) {
+async function addShade(name, link) {
   let idx;
   try {
     const reply = await request("add", (l) => l.startsWith("OK ") || l.startsWith("ERR"));
     if (!reply.startsWith("OK ")) { log(reply); toast(t("save.failed"), false); return; }
     idx = parseInt(reply.slice(3), 10);
     if (name) await send(`name ${idx} ${name}`);
-    if (link) await send(`link ${idx} ${link} ${code || 0}`);
+    if (link) await send(`link ${idx} ${link}`);
   } catch (e) {
     log("add failed: " + e.message);
     toast(t("save.failed"), false);
@@ -1227,6 +1177,15 @@ async function connect(existing) {
   await detect();
 }
 
+/** Forget the serial handles and flip the status bar to disconnected. */
+function dropPort() {
+  reader = null; pipeAbort = null; pipeDone = null; writer = null; port = null;
+  $("dot").classList.remove("on");
+  $("statusText").textContent = t("status.disconnected");
+  $("connect").disabled = false;
+  $("connect").textContent = t("board.recheck");
+}
+
 /**
  * Handle an unexpected loss of the board (USB unplug, or a serial port that
  * died). Tears down the connection, stops any listening loop, flips the UI to
@@ -1245,11 +1204,7 @@ function onDisconnect() {
   stopMatterPoll();
   try { if (writer) writer.releaseLock(); } catch (e) { /* already released */ }
   try { if (port) port.close(); } catch (e) { /* already closing */ }
-  reader = null; pipeAbort = null; pipeDone = null; writer = null; port = null;
-  $("dot").classList.remove("on");
-  $("statusText").textContent = t("status.disconnected");
-  $("connect").disabled = false;
-  $("connect").textContent = t("board.recheck");
+  dropPort();
   $("portHint").hidden = false;
   $("discoverPanel").hidden = true;
   $("linkModal").hidden = true;
@@ -1275,11 +1230,7 @@ async function releasePort() {
   try { if (pipeDone) await pipeDone; } catch (e) { /* settled via its own catch */ }
   try { if (writer) writer.releaseLock(); } catch (e) { /* already released */ }
   try { if (port) await port.close(); } catch (e) { /* already closing */ }
-  reader = null; pipeAbort = null; pipeDone = null; writer = null; port = null;
-  $("dot").classList.remove("on");
-  $("statusText").textContent = t("status.disconnected");
-  $("connect").disabled = false;
-  $("connect").textContent = t("board.recheck");
+  dropPort();
   $("next").disabled = true;
 }
 
@@ -1449,8 +1400,7 @@ function setMStep(key, state) {
  * ecosystem" (multi-admin). The live 3-row tracker distinguishes the Matter
  * fabric from the Thread mesh attach, since they are separate steps. Only a
  * change in the tuple re-renders, so the poll never flickers or re-opens the
- * window mid-pairing. `thread` is absent on older firmware — that row stays
- * hidden then.
+ * window mid-pairing.
  */
 function renderMatterState(stat) {
   const key = JSON.stringify(stat);
@@ -1464,13 +1414,7 @@ function renderMatterState(stat) {
   st.classList.remove("bad");
   setMStep("scan", fabrics > 0 ? "done" : stat.win ? "active" : "");
   setMStep("matter", fabrics > 0 ? "done" : "");
-  const threadRow = document.querySelector('#matterProgress [data-mstep="thread"]');
-  if (thread === undefined) {
-    threadRow.hidden = true;
-  } else {
-    threadRow.hidden = false;
-    setMStep("thread", thread >= 2 ? "done" : fabrics > 0 || thread >= 1 ? "active" : "");
-  }
+  setMStep("thread", thread >= 2 ? "done" : fabrics > 0 || thread >= 1 ? "active" : "");
   if (fabrics > 0) {
     st.textContent = t("matter.paired", { n: fabrics });
     btn.textContent = t("matter.addAnother");
@@ -1487,7 +1431,6 @@ function renderMatterState(stat) {
  * Two entries sharing a vendor is almost always a leftover from a retried
  * pairing, not two distinct ecosystems — so we point at the fix (reset + pair
  * once). Vendor IDs are shown as raw hex; the site never maps them to brands.
- * Silent on older firmware without the `fabrics` command.
  */
 async function showFabricDetail() {
   const el = $("matterFabrics");
@@ -1568,7 +1511,7 @@ $("linkCancel").addEventListener("click", () => {
   $("linkModal").hidden = true;
 });
 /** Add a motor without a heard remote. */
-$("addMotor").addEventListener("click", () => addShade("", null, 0));
+$("addMotor").addEventListener("click", () => addShade("", null));
 /** Send the new shade's PROG frame and reveal its test controls. */
 $("pairProgBtn").addEventListener("click", () => {
   if (pairIdx < 0) return;
@@ -1625,7 +1568,6 @@ $("scanCancel").addEventListener("click", () => {
 });
 $("radioPower").addEventListener("change", (e) => save(`power ${e.target.value}`));
 $("radioRxbw").addEventListener("change", (e) => save(`rxbw ${e.target.value}`));
-$("radioScan").addEventListener("click", () => scanBand().catch((e) => log("ERR " + e.message)));
 $("matterOpen").addEventListener("click", () => showPairing().catch((e) => log("ERR " + e.message)));
 $("matterModalClose").addEventListener("click", () => { $("matterModal").hidden = true; });
 $("matterReset").addEventListener("click", async () => {

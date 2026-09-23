@@ -125,7 +125,6 @@ export default {
   "radio.power": "Potencia de TX",
   "radio.rxbw": "Ancho de banda de RX",
   "radio.tuneHelp": "Deja los valores predeterminados a menos que sepas por qué los cambias. Baja la potencia de TX para motores cercanos; un ancho de banda de RX más estrecho rechaza más ruido, pero requiere la portadora bien ajustada.",
-  "radio.scan": "Escanear banda (RSSI)",
   "radio.rssi": "RSSI: {dbm} dBm",
   "radio.listen": "Escanear y escuchar un mando",
   "radio.ok": "Radio detectada: el CC1101 responde.",

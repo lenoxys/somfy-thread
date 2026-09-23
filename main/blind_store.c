@@ -16,7 +16,11 @@ static const char *TAG = "blind_store";
 #define NVS_RXBW  "rxbw"
 #define NVS_AGG   "agg_ep"
 
-/** One monitored physical remote per shade (RX-only; 0 = none). */
+/**
+ * One monitored physical remote per shade (RX-only; 0 = none). `roll` is never
+ * read; it is kept so the persisted links blob keeps its size and existing links
+ * still load.
+ */
 typedef struct {
     uint32_t addr;
     uint16_t roll;
@@ -28,22 +32,6 @@ static float   s_freq_mhz = BOARD_DEFAULT_FREQ_MHZ;
 static uint8_t s_tx_power  = 7;  /* +10 dBm: top index of the CC1101 power table */
 static uint8_t s_rxbw      = 2;  /* ~203 kHz: matches the init MDMCFG4 = 0x8A */
 static uint16_t s_agg_ep   = 0;
-
-/**
- * Persist the linked-remote table to its own NVS blob, independent of the shade
- * table so the two layouts never interfere.
- */
-static void save_links(void)
-{
-    nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
-        ESP_LOGW(TAG, "nvs_open failed — link save skipped");
-        return;
-    }
-    nvs_set_blob(h, NVS_LINK, s_links, sizeof(s_links));
-    nvs_commit(h);
-    nvs_close(h);
-}
 
 /**
  * Erase the whole Somfy NVS namespace (shades, links, radio settings). The next
@@ -134,7 +122,6 @@ void blind_store_remove(int idx)
     memset(&s_shades[idx], 0, sizeof(s_shades[idx]));
     memset(&s_links[idx], 0, sizeof(s_links[idx]));
     blind_store_save();
-    save_links();
 }
 
 uint32_t blind_store_link_addr(int idx)
@@ -143,18 +130,11 @@ uint32_t blind_store_link_addr(int idx)
     return s_links[idx].addr;
 }
 
-void blind_store_set_link(int idx, uint32_t addr, uint16_t rolling)
+void blind_store_set_link(int idx, uint32_t addr)
 {
     if (idx < 0 || idx >= BLIND_MAX_COUNT) return;
     s_links[idx].addr = addr & 0xFFFFFF;
-    s_links[idx].roll = rolling;
-    save_links();
-}
-
-void blind_store_link_seen(int idx, uint16_t code)
-{
-    if (idx < 0 || idx >= BLIND_MAX_COUNT || !s_links[idx].addr) return;
-    if (code > s_links[idx].roll) { s_links[idx].roll = code; save_links(); }
+    blind_store_save();
 }
 
 /**
@@ -184,7 +164,10 @@ shade_t *blind_store_get(int idx)
 }
 
 /**
- * Write the whole table to NVS and commit. Silently skips if NVS cannot open.
+ * Write the shade table, the links, and the radio/aggregator settings to NVS and
+ * commit. NVS skips any key whose stored value is unchanged (nvs_storage.cpp
+ * Storage::writeItem), so only what changed reaches flash. Silently skips if NVS
+ * cannot open.
  */
 void blind_store_save(void)
 {
@@ -194,6 +177,11 @@ void blind_store_save(void)
         return;
     }
     nvs_set_blob(h, NVS_KEY, s_shades, sizeof(s_shades));
+    nvs_set_blob(h, NVS_LINK, s_links, sizeof(s_links));
+    nvs_set_blob(h, NVS_FREQ, &s_freq_mhz, sizeof(s_freq_mhz));
+    nvs_set_u8(h, NVS_POWER, s_tx_power);
+    nvs_set_u8(h, NVS_RXBW, s_rxbw);
+    nvs_set_u16(h, NVS_AGG, s_agg_ep);
     nvs_commit(h);
     nvs_close(h);
 }
@@ -213,52 +201,13 @@ uint16_t blind_store_next_rolling(int idx)
 }
 
 float blind_store_freq(void) { return s_freq_mhz; }
-
-void blind_store_set_freq(float mhz)
-{
-    s_freq_mhz = mhz;
-    nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
-        ESP_LOGW(TAG, "nvs_open failed — freq save skipped");
-        return;
-    }
-    nvs_set_blob(h, NVS_FREQ, &s_freq_mhz, sizeof(s_freq_mhz));
-    nvs_commit(h);
-    nvs_close(h);
-}
+void blind_store_set_freq(float mhz) { s_freq_mhz = mhz; blind_store_save(); }
 
 uint8_t blind_store_tx_power(void) { return s_tx_power; }
-
-void blind_store_set_tx_power(uint8_t idx)
-{
-    s_tx_power = idx;
-    nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    nvs_set_u8(h, NVS_POWER, idx);
-    nvs_commit(h);
-    nvs_close(h);
-}
+void blind_store_set_tx_power(uint8_t idx) { s_tx_power = idx; blind_store_save(); }
 
 uint16_t blind_store_agg_ep(void) { return s_agg_ep; }
-
-void blind_store_set_agg_ep(uint16_t ep_id)
-{
-    s_agg_ep = ep_id;
-    nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    nvs_set_u16(h, NVS_AGG, ep_id);
-    nvs_commit(h);
-    nvs_close(h);
-}
+void blind_store_set_agg_ep(uint16_t ep_id) { s_agg_ep = ep_id; blind_store_save(); }
 
 uint8_t blind_store_rxbw(void) { return s_rxbw; }
-
-void blind_store_set_rxbw(uint8_t idx)
-{
-    s_rxbw = idx;
-    nvs_handle_t h;
-    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    nvs_set_u8(h, NVS_RXBW, idx);
-    nvs_commit(h);
-    nvs_close(h);
-}
+void blind_store_set_rxbw(uint8_t idx) { s_rxbw = idx; blind_store_save(); }
