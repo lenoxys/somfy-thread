@@ -1556,7 +1556,7 @@ function stepperNav(e) {
 $("stepper").addEventListener("click", stepperNav);
 $("stepper").addEventListener("keydown", stepperNav);
 $("dlLog").addEventListener("click", () => {
-  const head = `# somfy-thread web ${$("siteVer").textContent} · ${new Date().toISOString()}\n`;
+  const head = `# somfy-thread web ${$("siteVer").textContent} · ${new Date().toLocaleString("sv-SE")}\n`;
   download(head + logEl.textContent, `somfy-thread-serial-${fileStamp()}.log`, "text/plain");
 });
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
