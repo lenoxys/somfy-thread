@@ -1328,9 +1328,13 @@ async function exportBackup() {
   const line = await request("export", (l) => l.startsWith("["));
   const freq = await request("freq", (l) => /^\d+\.\d+$/.test(l.trim()));
   const data = JSON.stringify({ freq: parseFloat(freq), shades: JSON.parse(line) });
-  const timestamp = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short", hourCycle: "h23" })
+  download(data, `somfy-thread-backup-${fileStamp()}.json`, "application/json");
+}
+
+/** Local date-time as YYYY-MM-DD-HHMM, for export filenames. */
+function fileStamp() {
+  return new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "short", hourCycle: "h23" })
     .format(new Date()).replace(" ", "-").replace(":", "");
-  download(data, `somfy-thread-backup-${timestamp}.json`, "application/json");
 }
 
 /**
@@ -1552,7 +1556,8 @@ function stepperNav(e) {
 $("stepper").addEventListener("click", stepperNav);
 $("stepper").addEventListener("keydown", stepperNav);
 $("dlLog").addEventListener("click", () => {
-  download(logEl.textContent, "somfy-thread-serial.log", "text/plain");
+  const head = `# somfy-thread web ${$("siteVer").textContent} · ${new Date().toISOString()}\n`;
+  download(head + logEl.textContent, `somfy-thread-serial-${fileStamp()}.log`, "text/plain");
 });
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
 $("import").addEventListener("click", () => $("importFile").click());
