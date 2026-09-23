@@ -106,8 +106,6 @@ void blind_store_init(void)
     blind_store_save();
 }
 
-int blind_store_count(void) { return BLIND_MAX_COUNT; }
-
 bool blind_store_used(int idx)
 {
     return idx >= 0 && idx < BLIND_MAX_COUNT && s_shades[idx].addr != 0;
@@ -118,19 +116,12 @@ int blind_store_add(uint32_t addr, uint16_t rolling, const char *name)
     for (int i = 0; i < BLIND_MAX_COUNT; i++) {
         if (s_shades[i].addr) continue;
         shade_t *s = &s_shades[i];
-        s->addr    = addr & 0xFFFFFF;
-        s->rolling = rolling;
-        s->ep_id   = 0;
-        s->enabled = true;
-        s->remote  = false;
-        s->up_ms   = 0;
-        s->down_ms = 0;
-        s->my_pct  = SHADE_MY_UNSET;
-        s->invert  = false;
-        s->up_lag_ms   = 0;
-        s->down_lag_ms = 0;
-        s->pos     = 0;
-        s->name[0] = 0;
+        *s = (shade_t) {
+            .addr = addr & 0xFFFFFF,
+            .rolling = rolling,
+            .enabled = true,
+            .my_pct = SHADE_MY_UNSET,
+        };
         if (name) strncat(s->name, name, sizeof(s->name) - 1);
         return i;
     }

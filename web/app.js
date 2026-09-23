@@ -521,6 +521,13 @@ async function scanBand() {
 const SCAN_FREQS = [433.42, 433.40, 433.44, 433.38, 433.46, 433.36];
 let scanning = false;
 
+/** Parse one unsolicited Somfy receive line. */
+function parseRx(line) {
+  const addr = line.match(/addr=0x([0-9A-Fa-f]+)/);
+  const code = line.match(/code=(\d+)/);
+  return addr ? { addr: addr[1].toUpperCase().padStart(6, "0"), code: code ? Number(code[1]) : 0 } : null;
+}
+
 /**
  * Scan the band while listening: retune the radio to each candidate frequency
  * and wait for the board to decode a frame ([RX] log line). The first frequency
@@ -543,9 +550,9 @@ async function scanAndListen() {
       try {
         const line = await waitFor((l) => l.includes("[RX] addr="), 3000);
         if (!scanning) return;
-        const m = line.match(/addr=0x([0-9A-Fa-f]+)/);
+        const frame = parseRx(line);
         heard.hidden = false;
-        heard.textContent = t("radio.heard", { addr: m ? m[1] : "?", freq: fs });
+        heard.textContent = t("radio.heard", { addr: frame ? frame.addr : "?", freq: fs });
         $("radioFreq").value = fs;
         radioReady = true;
         $("radioListen").disabled = true;
@@ -560,12 +567,6 @@ async function scanAndListen() {
     scanning = false;
     $("scanModal").hidden = true;
   }
-}
-
-/** Cancel an in-flight scanAndListen() sweep and close its modal. */
-function cancelScan() {
-  scanning = false;
-  $("scanModal").hidden = true;
 }
 
 /* ── shade rendering ──────────────────────────────────────────────────── */
@@ -702,7 +703,9 @@ function renderManage() {
     tr.classList.toggle("disabled", !s.on);
     const detail = shadeDetailRow(s);
     tr.append(nameTd(s, detail));
-    tr.append(switchTd(s.on, (on) => save(`on ${s.idx} ${on ? 1 : 0}`)));
+    const onCell = document.createElement("td");
+    onCell.append(switchEl(s.on, (on) => save(`on ${s.idx} ${on ? 1 : 0}`)));
+    tr.append(onCell);
     tr.append(posTd(s));
     tr.append(motorTd(s.idx));
     const rm = document.createElement("td");
@@ -1033,13 +1036,6 @@ function switchEl(on, onToggle) {
   return lab;
 }
 
-/** Cell wrapping a toggle switch for the On state. */
-function switchTd(on, onToggle) {
-  const cell = document.createElement("td");
-  cell.append(switchEl(on, onToggle));
-  return cell;
-}
-
 function mkBtn(label, onClick, cls = "") {
   const b = document.createElement("button");
   b.className = ("btn " + cls).trim();
@@ -1084,20 +1080,11 @@ async function startDiscover() {
     } catch (e) {
       continue;
     }
-    const ma = line.match(/addr=0x([0-9A-Fa-f]+)/);
-    const mc = line.match(/code=(\d+)/);
-    if (!ma) continue;
-    const addr = ma[1].toUpperCase().padStart(6, "0");
-    if (known.has(addr) || seen.has(addr)) continue;
-    seen.add(addr);
-    addDiscoverCard(addr, mc ? Number(mc[1]) : 0);
+    const frame = parseRx(line);
+    if (!frame || known.has(frame.addr) || seen.has(frame.addr)) continue;
+    seen.add(frame.addr);
+    addDiscoverCard(frame.addr, frame.code);
   }
-}
-
-/** Stop the discovery loop and hide its panel. */
-function stopDiscover() {
-  discovering = false;
-  $("discoverPanel").hidden = true;
 }
 
 /**
@@ -1149,7 +1136,7 @@ function linkControl(s) {
  * Associate a physical wall remote with shade `idx`: open a blocking modal, then
  * listen for the next RF frame whose address is not already a shade's own
  * address and store it as the monitored linked remote (seeding rolling from the
- * heard code). The modal's Cancel button aborts via cancelLink().
+ * heard code). The modal's Cancel button aborts the pending capture.
  */
 async function linkRemote(idx) {
   if (linking) return;
@@ -1165,29 +1152,15 @@ async function linkRemote(idx) {
         continue;
       }
       if (!linking) return;
-      const ma = line.match(/addr=0x([0-9A-Fa-f]+)/);
-      const mc = line.match(/code=(\d+)/);
-      if (!ma) continue;
-      const addr = ma[1].toUpperCase().padStart(6, "0");
-      if (known.has(addr)) continue;
-      mutate(`link ${idx} ${addr} ${mc ? mc[1] : 0}`);
+      const frame = parseRx(line);
+      if (!frame || known.has(frame.addr)) continue;
+      mutate(`link ${idx} ${frame.addr} ${frame.code}`);
       return;
     }
   } finally {
     linking = false;
     $("linkModal").hidden = true;
   }
-}
-
-/** Cancel a pending linkRemote() capture and close its modal. */
-function cancelLink() {
-  linking = false;
-  $("linkModal").hidden = true;
-}
-
-/** Add a motor without a remote: same guided flow as discovery, minus the linked remote. */
-function addMotor() {
-  addShade("", null, 0);
 }
 
 /**
@@ -1228,21 +1201,6 @@ function beginPair(idx) {
   $("pairTest").hidden = true;
   $("pairDone").hidden = true;
   $("pairModal").hidden = false;
-}
-
-/** Send this shade's PROG frame, then reveal the test controls and Done. */
-function pairProg() {
-  if (pairIdx < 0) return;
-  send(`tx ${pairIdx} prog`);
-  $("pairProg").hidden = true;
-  $("pairTest").hidden = false;
-  $("pairDone").hidden = false;
-}
-
-/** Close the pairing modal, leaving discovery open to add the next shade. */
-function endPair() {
-  $("pairModal").hidden = true;
-  pairIdx = -1;
 }
 
 /* ── actions ──────────────────────────────────────────────────────────── */
@@ -1405,17 +1363,21 @@ async function beginFlash() {
   $("flashConfirmModal").hidden = false;
 }
 
+/** Download generated content through a temporary object URL. */
+function download(contents, filename, mimeType) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([contents], { type: mimeType }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 /** Download the current config (global radio freq + shade table) as JSON. */
 async function exportBackup() {
   const line = await request("export", (l) => l.startsWith("["));
   const freq = await request("freq", (l) => /^\d+\.\d+$/.test(l.trim()));
   const data = JSON.stringify({ freq: parseFloat(freq), shades: JSON.parse(line) });
-  const blob = new Blob([data], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "somfy-thread-backup.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
+  download(data, "somfy-thread-backup.json", "application/json");
 }
 
 /**
@@ -1445,11 +1407,6 @@ async function importBackup(file) {
 }
 
 let pairQr = "";
-
-/** Hide the whole Matter label (paired state, or before checking). */
-function hidePairing() {
-  $("matterLabel").hidden = true;
-}
 
 /** Group an 11-digit Matter manual code as 4-3-4 (e.g. 3497-011-2332). */
 function formatManual(code) {
@@ -1559,7 +1516,7 @@ async function pollMatterOnce() {
  */
 async function loadMatter() {
   matterStat = "";
-  hidePairing();
+  $("matterLabel").hidden = true;
   const st = $("matterStatus");
   st.hidden = false;
   st.classList.remove("bad");
@@ -1598,14 +1555,34 @@ async function showPairing() {
 
 $("connect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 $("discover").addEventListener("click", () => startDiscover().catch((e) => log("ERR " + e.message)));
-$("discoverDone").addEventListener("click", () => stopDiscover());
-$("linkCancel").addEventListener("click", () => cancelLink());
-$("addMotor").addEventListener("click", () => addMotor());
-$("pairProgBtn").addEventListener("click", () => pairProg());
+/** Stop discovery and close its panel. */
+$("discoverDone").addEventListener("click", () => {
+  discovering = false;
+  $("discoverPanel").hidden = true;
+});
+/** Cancel the pending remote-link capture. */
+$("linkCancel").addEventListener("click", () => {
+  linking = false;
+  $("linkModal").hidden = true;
+});
+/** Add a motor without a heard remote. */
+$("addMotor").addEventListener("click", () => addShade("", null, 0));
+/** Send the new shade's PROG frame and reveal its test controls. */
+$("pairProgBtn").addEventListener("click", () => {
+  if (pairIdx < 0) return;
+  send(`tx ${pairIdx} prog`);
+  $("pairProg").hidden = true;
+  $("pairTest").hidden = false;
+  $("pairDone").hidden = false;
+});
 $("pairOpen").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} up`); });
 $("pairStop").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} stop`); });
 $("pairClose").addEventListener("click", () => { if (pairIdx >= 0) send(`tx ${pairIdx} down`); });
-$("pairDone").addEventListener("click", () => endPair());
+/** Close the pairing modal after its test. */
+$("pairDone").addEventListener("click", () => {
+  $("pairModal").hidden = true;
+  pairIdx = -1;
+});
 $("reconnect").addEventListener("click", () => connect().catch((e) => log("ERR " + e.message)));
 if ("serial" in navigator)
   navigator.serial.addEventListener("disconnect", (e) => { if (e.target === port) onDisconnect(); });
@@ -1630,12 +1607,7 @@ function stepperNav(e) {
 $("stepper").addEventListener("click", stepperNav);
 $("stepper").addEventListener("keydown", stepperNav);
 $("dlLog").addEventListener("click", () => {
-  const blob = new Blob([logEl.textContent], { type: "text/plain" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "somfy-thread-serial.log";
-  a.click();
-  URL.revokeObjectURL(a.href);
+  download(logEl.textContent, "somfy-thread-serial.log", "text/plain");
 });
 $("export").addEventListener("click", () => exportBackup().catch((e) => log("ERR " + e.message)));
 $("import").addEventListener("click", () => $("importFile").click());
@@ -1644,7 +1616,11 @@ $("importFile").addEventListener("change", (e) => {
 });
 $("radioFreq").addEventListener("change", (e) => save(`freq ${e.target.value}`));
 $("radioListen").addEventListener("click", () => scanAndListen());
-$("scanCancel").addEventListener("click", () => cancelScan());
+/** Cancel an in-flight radio scan. */
+$("scanCancel").addEventListener("click", () => {
+  scanning = false;
+  $("scanModal").hidden = true;
+});
 $("radioPower").addEventListener("change", (e) => save(`power ${e.target.value}`));
 $("radioRxbw").addEventListener("change", (e) => save(`rxbw ${e.target.value}`));
 $("radioScan").addEventListener("click", () => scanBand().catch((e) => log("ERR " + e.message)));

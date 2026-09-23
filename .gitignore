@@ -30,3 +30,4 @@ web/fw/
 # firmware binaries (local-build artifact, release bins live on GitHub Releases)
 *.bin
 *.ota
+somfy-backup*.json

@@ -650,14 +650,6 @@ static void open_cw_work(intptr_t)
 }
 
 /**
- * Open a 15-minute basic commissioning window, scheduled on the Matter thread.
- */
-extern "C" void app_matter_open_window(void)
-{
-    LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(open_cw_work, 0));
-}
-
-/**
  * @return The number of Matter fabrics the device is commissioned to (0 = not
  *         yet paired). Lets the web branch initial pairing vs adding another
  *         ecosystem. Read directly like app_matter_qr/manual (console thread).
@@ -665,15 +657,6 @@ extern "C" void app_matter_open_window(void)
 extern "C" int app_matter_fabric_count(void)
 {
     return chip::Server::GetInstance().GetFabricTable().FabricCount();
-}
-
-/**
- * @return true if a commissioning window is open (a hub can pair right now).
- *         Read directly like app_matter_fabric_count (console thread).
- */
-extern "C" bool app_matter_window_open(void)
-{
-    return chip::Server::GetInstance().GetCommissioningWindowManager().IsCommissioningWindowOpen();
 }
 
 /**
@@ -1053,8 +1036,8 @@ static int cmd_reg(int argc, char **argv)
 static int cmd_version(int, char **) { printf("somfy-thread %s proto %d\n", esp_app_get_description()->version, SOMFY_PROTO); return 0; }
 static int cmd_export(int, char **) { print_shades_json(false); return 0; }
 static int cmd_qr(int, char **)     { printf("%s\n", app_matter_qr()); return 0; }
-static int cmd_pair(int, char **)   { app_matter_open_window(); printf("%s\n", app_matter_manual()); return 0; }
-static int cmd_mstat(int, char **)  { printf("{\"fabrics\":%d,\"thread\":%d,\"win\":%d}\n", app_matter_fabric_count(), app_thread_role(), app_matter_window_open() ? 1 : 0); return 0; }
+static int cmd_pair(int, char **)   { LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(open_cw_work, 0)); printf("%s\n", app_matter_manual()); return 0; }
+static int cmd_mstat(int, char **)  { printf("{\"fabrics\":%d,\"thread\":%d,\"win\":%d}\n", app_matter_fabric_count(), app_thread_role(), chip::Server::GetInstance().GetCommissioningWindowManager().IsCommissioningWindowOpen() ? 1 : 0); return 0; }
 
 /**
  * Print one JSON object per commissioned Matter fabric: table `idx`, the admin's
