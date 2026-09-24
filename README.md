@@ -27,6 +27,19 @@ Each shade exposes its own WindowCovering endpoint with a stable Matter identity
 
 Waveshare ESP32-C6-Zero + E07-M1101D (CC1101, 433 MHz). Full wiring, pin map, and radio notes: **[hardware & pinout](https://lenoxys.github.io/somfy-thread/docs/hardware.html)**.
 
+### Status LED
+
+The board's on-board RGB LED shows where onboarding stands, and any fault after it (first match wins):
+
+| LED | Meaning |
+|---|---|
+| ⚪ solid white | Radio off — CC1101 not detected at boot; shades can't be driven |
+| 🔴 solid red | Not paired and the commissioning window is closed — run `pair` / open it from the setup page |
+| 🔵 blinking blue | Commissioning window open, waiting for a Matter controller |
+| 🟣 blinking violet | On the Thread network, no Matter fabric yet |
+| 🟡 blinking yellow | Paired with Matter but not on the Thread network (border router down or out of range) |
+| 🟢 solid green | Paired and on Thread — the LED turns off after 5 minutes and comes back as soon as something breaks |
+
 ## Build from source
 
 Needs esp-idf and esp-matter (with submodules). With `IDF_PATH` and `ESP_MATTER_PATH` set:

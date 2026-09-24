@@ -21,3 +21,9 @@
 #define BOARD_FREQ_MAX_MHZ      434.79f
 
 #define BLIND_MAX_COUNT         32
+
+// On-board WS2812 RGB LED of the Waveshare ESP32-C6-Zero. GPIO8 is a strapping
+// pin, but the LED is hard-wired to it; driven only after boot, so harmless.
+// Colour order is RGB, not the WS2812-standard GRB: GRB showed green as red on the bench unit.
+#define BOARD_PIN_STATUS_LED    8
+#define BOARD_STATUS_LED_FMT    LED_STRIP_COLOR_COMPONENT_FMT_RGB

@@ -53,6 +53,22 @@
       tunable from the setup page. A real crystal drifts, so sweep 433.36–433.44 if a
       motor stays silent.
     </div>
+    <h2>Status LED</h2>
+    <p>
+      The C6-Zero's on-board RGB LED (GP8) shows onboarding progress and any later
+      fault; the first matching row wins.
+    </p>
+    <table>
+      <thead><tr><th>LED</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Solid white</td><td>Radio off — CC1101 not detected at boot</td></tr>
+        <tr><td>Solid red</td><td>Not paired, commissioning window closed</td></tr>
+        <tr><td>Blinking blue</td><td>Commissioning window open, waiting for a controller</td></tr>
+        <tr><td>Blinking violet</td><td>On the Thread network, no Matter fabric yet</td></tr>
+        <tr><td>Blinking yellow</td><td>Paired with Matter, not on the Thread network</td></tr>
+        <tr><td>Solid green</td><td>Paired and on Thread — off after 5 minutes, back on any fault</td></tr>
+      </tbody>
+    </table>
     <p class="muted">Reference: E07-M1101D-SMA manufacturer datasheet (pin definition and MCU wiring).</p>
     <img class="pinout" src="e07-m1101d.webp" alt="E07-M1101D-SMA specifications, pin definition, and MCU wiring diagram">
   </section>

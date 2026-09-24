@@ -21,6 +21,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "esp_timer.h"
+#include "led_strip.h"
 
 #include <esp_matter.h>
 #include <esp_matter_console.h>
@@ -651,6 +652,56 @@ static int app_thread_role(void)
     return role;
 }
 
+#define STATUS_LED_PERIOD_MS    250
+#define STATUS_LED_GREEN_OFF_MS (5 * 60 * 1000)
+#define STATUS_LED_LEVEL        16
+
+/**
+ * Onboarding status on the on-board RGB LED, polled every STATUS_LED_PERIOD_MS
+ * from the same state `mstat` reports, first match wins: white = RF disabled
+ * (CC1101 absent); red = unpaired with the commissioning window closed (`pair`
+ * reopens it); blinking blue = window open, nothing joined yet; blinking violet
+ * = on the Thread mesh but no Matter fabric; blinking yellow = Matter fabric but
+ * not on the Thread mesh; green = both. After STATUS_LED_GREEN_OFF_MS of steady
+ * green the LED goes dark; leaving green shows the status again. Uses the second
+ * RMT TX channel (somfy_rts holds the first).
+ */
+static void status_led_task(void *)
+{
+    led_strip_config_t cfg = {};
+    cfg.strip_gpio_num = BOARD_PIN_STATUS_LED;
+    cfg.max_leds = 1;
+    cfg.led_model = LED_MODEL_WS2812;
+    cfg.color_component_format = BOARD_STATUS_LED_FMT;
+    led_strip_rmt_config_t rmt = {};
+    led_strip_handle_t led;
+    if (led_strip_new_rmt_device(&cfg, &rmt, &led) != ESP_OK) {
+        ESP_LOGW(TAG, "status LED init failed");
+        vTaskDelete(NULL);
+    }
+    int green_ms = 0;
+    bool phase = false;
+    for (;;) {
+        bool fabric = app_matter_fabric_count() > 0;
+        bool thread = app_thread_role() >= OT_DEVICE_ROLE_CHILD;
+        bool win = chip::Server::GetInstance().GetCommissioningWindowManager().IsCommissioningWindowOpen();
+        uint8_t r = 0, g = 0, b = 0;
+        phase = !phase;
+        if (!fabric || !thread) green_ms = 0;
+        if (!s_rf_ok) { r = g = b = STATUS_LED_LEVEL; }
+        else if (fabric && thread) {
+            if (green_ms < STATUS_LED_GREEN_OFF_MS) { g = STATUS_LED_LEVEL; green_ms += STATUS_LED_PERIOD_MS; }
+        }
+        else if (thread) { if (phase) { r = STATUS_LED_LEVEL; b = STATUS_LED_LEVEL; } }
+        else if (fabric) { if (phase) { r = STATUS_LED_LEVEL; g = STATUS_LED_LEVEL; } }
+        else if (win) { if (phase) b = STATUS_LED_LEVEL; }
+        else r = STATUS_LED_LEVEL;
+        led_strip_set_pixel(led, 0, r, g, b);
+        led_strip_refresh(led);
+        vTaskDelay(pdMS_TO_TICKS(STATUS_LED_PERIOD_MS));
+    }
+}
+
 /**
  * Reset Matter + Thread and reboot, on the Matter thread. When `full`, also wipe
  * the Somfy store (shades, links, radio) first — esp_matter's reset only clears
@@ -1175,6 +1226,7 @@ extern "C" void app_main(void)
     esp_matter::start(nullptr);
 
     restore_endpoints();
+    xTaskCreate(status_led_task, "led", 3072, NULL, 2, NULL);
 
     esp_matter::console::init();
     register_console();
